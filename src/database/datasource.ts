@@ -18,6 +18,7 @@ export default new DataSource({
     path.join(__dirname, '..', 'cart', '**', '*.entity{.ts,.js}'),
     path.join(__dirname, '..', 'cartItem', '**', '*.entity{.ts,.js}'),
     path.join(__dirname, '..', 'admin-settings', '**', '*.entity{.ts,.js}'),
+    path.join(__dirname, '..', 'discount', '**', '*.entity{.ts,.js}'),
   ],
   synchronize: false,
   logging: false,

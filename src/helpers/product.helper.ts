@@ -4,6 +4,7 @@ import { parseStringPromise, Builder as XmlBuilder } from 'xml2js';
 import { Workbook } from 'exceljs';
 import { parse } from 'csv-parse';
 import { BadRequestException } from '@nestjs/common';
+import { formatDateSpanish, now } from './date.helper';
 
 export function addSlug(product: Partial<Product>) {
   const slug = product.name
@@ -56,11 +57,7 @@ export function toXml(products: Partial<Product>[]): Buffer {
 
 export async function toXlsx(products: Partial<Product>[]): Promise<Buffer> {
   const wb = new Workbook();
-  const formattedDate = new Date().toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const formattedDate = formatDateSpanish(now());
   const ws = wb.addWorksheet(`Productos al ${formattedDate}`);
 
   // Build column definitions, styling "price" in red

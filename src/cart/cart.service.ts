@@ -9,6 +9,8 @@ import { Cart } from './cart.entity';
 import { Repository } from 'typeorm';
 import { CartItem } from './cartItem.entity';
 import { User } from 'src/user/user.entity';
+import { nowAsDate, formatDateISO } from 'src/helpers/date.helper';
+import { CartResponse } from './dto/cartResponse.dto';
 
 @Injectable()
 export class CartService {
@@ -23,21 +25,44 @@ export class CartService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async getCartByOwnId(id: number): Promise<Cart> {
-    return await this.cartRepository.findOne({
+  private toCartResponse(cart: Cart): CartResponse {
+    return {
+      id: cart.id,
+      createdAt: formatDateISO(cart.createdAt),
+      updatedAt: formatDateISO(cart.updatedAt),
+      userId: cart.userId,
+      items: (cart.items || []).map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        cartId: item.cartId,
+      })),
+    };
+  }
+
+  async getCartByOwnId(id: number): Promise<CartResponse> {
+    const cart = await this.cartRepository.findOne({
       where: { id },
-      relations: ['items'],
+      relations: ['items', 'items.product'],
     });
+    if (!cart) {
+      throw new NotFoundException(`Cart ${id} not found`);
+    }
+    return this.toCartResponse(cart);
   }
 
-  async getCartByUserId(userId: string): Promise<Cart> {
-    return await this.cartRepository.findOne({
+  async getCartByUserId(userId: string): Promise<CartResponse> {
+    const cart = await this.cartRepository.findOne({
       where: { userId },
-      relations: ['items'],
+      relations: ['items', 'items.product'],
     });
+    if (!cart) {
+      throw new NotFoundException(`Cart for user ${userId} not found`);
+    }
+    return this.toCartResponse(cart);
   }
 
-  async createCart(userId: string): Promise<Cart> {
+  async createCart(userId: string): Promise<CartResponse> {
     const getUser = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['cart'],
@@ -48,18 +73,22 @@ export class CartService {
     if (getUser.cart) {
       throw new BadRequestException(`User ${userId} already has a cart`);
     }
+    const now = nowAsDate();
     const cart = this.cartRepository.create({
       userId,
+      createdAt: now,
+      updatedAt: now,
       items: [],
     });
-    return await this.cartRepository.save(cart);
+    const savedCart = await this.cartRepository.save(cart);
+    return this.toCartResponse(savedCart);
   }
 
   async addItemToCart(
     cartId: number,
     productId: number,
     quantity: number,
-  ): Promise<Cart> {
+  ): Promise<CartResponse> {
     // 1) Check the cart exists
     const cart = await this.cartRepository.findOne({ where: { id: cartId } });
     if (!cart) {
@@ -88,17 +117,21 @@ export class CartService {
     }
 
     // 4) Return the cart *with* its items populated
-    return this.cartRepository.findOne({
+    const updatedCart = await this.cartRepository.findOne({
       where: { id: cartId },
       relations: ['items', 'items.product'],
     });
+    if (!updatedCart) {
+      throw new NotFoundException(`Cart ${cartId} not found`);
+    }
+    return this.toCartResponse(updatedCart);
   }
 
   async deleteItemFromCart(
     cartId: number,
     productId: number,
     quantity: number,
-  ): Promise<Cart> {
+  ): Promise<CartResponse> {
     // 1) Check the cart exists
     const cart = await this.cartRepository.findOne({ where: { id: cartId } });
     if (!cart) {
@@ -124,13 +157,17 @@ export class CartService {
     }
 
     // 4) Return the cart *with* its items populated
-    return this.cartRepository.findOne({
+    const updatedCart = await this.cartRepository.findOne({
       where: { id: cartId },
       relations: ['items', 'items.product'],
     });
+    if (!updatedCart) {
+      throw new NotFoundException(`Cart ${cartId} not found`);
+    }
+    return this.toCartResponse(updatedCart);
   }
 
-  async emptyCart(cartId: number): Promise<Cart> {
+  async emptyCart(cartId: number): Promise<CartResponse> {
     // 1) Check the cart exists
     const cart = await this.cartRepository.findOne({ where: { id: cartId } });
     if (!cart) {
@@ -141,9 +178,13 @@ export class CartService {
     await this.cartItemRepository.delete({ cartId });
 
     // 3) Return the cart *with* its items populated
-    return this.cartRepository.findOne({
+    const emptyCart = await this.cartRepository.findOne({
       where: { id: cartId },
       relations: ['items', 'items.product'],
     });
+    if (!emptyCart) {
+      throw new NotFoundException(`Cart ${cartId} not found`);
+    }
+    return this.toCartResponse(emptyCart);
   }
 }

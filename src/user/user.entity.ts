@@ -1,10 +1,19 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  JoinTable,
+  ManyToMany,
+  OneToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { UserRole } from './user.enum';
 import { Cart } from '../cart/cart.entity';
+import { Discount } from '../discount/discount.entity';
 
 @Entity('user')
 export class User {
-  @PrimaryColumn('uuid')
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({
@@ -20,21 +29,52 @@ export class User {
     nullable: false,
     length: 120,
   })
-  fullName: string;
+  nombre: string;
+
+  @Column({
+    type: 'varchar',
+    nullable: false,
+    length: 120,
+  })
+  apellido: string;
+
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  direccion: string;
+
+  @Column({
+    type: 'varchar',
+    nullable: false,
+    length: 20,
+  })
+  telefono: string;
+
+  @Column({
+    type: 'varchar',
+    nullable: false,
+    length: 255,
+  })
+  password: string;
 
   @Column({
     type: 'enum',
     nullable: false,
-    default: UserRole.USER,
     enum: UserRole,
     enumName: 'user_role',
   })
-  role: UserRole;
+  rol: UserRole;
 
-  @OneToOne(() => Cart, (cart) => cart.user, {
-    cascade: true,
-    eager: true,
+  @ManyToMany(() => Discount, (discount) => discount.clientes)
+  @JoinTable({
+    name: 'user_discount',
+    joinColumn: { name: 'userId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'discountId', referencedColumnName: 'id' },
   })
-  @JoinColumn()
+  descuentosAplicados: Discount[];
+
+  @OneToOne(() => Cart, (cart) => cart.user)
   cart: Cart;
 }

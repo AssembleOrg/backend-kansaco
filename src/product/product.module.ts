@@ -4,13 +4,13 @@ import { Product } from './product.entity';
 import { ProductoService } from './product.service';
 import { ProductoController } from './product.controller';
 import { AuthGuard } from 'src/guards/auth.guard';
-import { SupabaseService } from 'src/extraServices/supabase.service';
 import { UserModule } from 'src/user/user.module';
 import { RolesGuard } from 'src/guards/roles.guard';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product]), UserModule],
+  imports: [TypeOrmModule.forFeature([Product]), UserModule, AuthModule],
   controllers: [ProductoController],
-  providers: [ProductoService, AuthGuard, SupabaseService, RolesGuard],
+  providers: [ProductoService, AuthGuard, RolesGuard],
 })
 export class ProductoModule {}

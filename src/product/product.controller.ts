@@ -122,7 +122,7 @@ export class ProductoController {
   }
 
   @Put('/:id/edit')
-  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(AuthGuard, RolesGuard)
   @ApiBearerAuth()
   @ApiOkResponse()
@@ -135,7 +135,7 @@ export class ProductoController {
   }
 
   @Post('/create')
-  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(AuthGuard, RolesGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProductResponse })

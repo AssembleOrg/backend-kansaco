@@ -11,6 +11,7 @@ import {
   toXlsx,
   toXml,
 } from 'src/helpers/product.helper';
+import { formatDateSpanish, now } from 'src/helpers/date.helper';
 
 export type ExportFormat = 'csv' | 'xml' | 'xlsx';
 
@@ -131,11 +132,7 @@ export class ProductoService {
       select: ['id', 'name', 'price'],
     });
     this.logger.log('Cantidad de productos: ' + products.length);
-    const fileName = `productos-al-${new Date().toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })}`;
+    const fileName = `productos-al-${formatDateSpanish(now())}`;
 
     switch (formatOutput) {
       case 'csv':

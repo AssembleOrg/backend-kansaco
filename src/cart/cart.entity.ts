@@ -10,6 +10,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { CartItem } from './cartItem.entity';
+import { dateTransformer } from '../database/date.transformer';
+import { DateTime } from 'luxon';
 
 @Entity('cart')
 export class Cart {
@@ -19,11 +21,14 @@ export class Cart {
   @Column({
     type: 'timestamp',
     nullable: false,
+    transformer: dateTransformer,
   })
-  createdAt: Date;
+  createdAt: DateTime;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @UpdateDateColumn({
+    transformer: dateTransformer,
+  })
+  updatedAt: DateTime;
 
   @OneToOne(() => User, (user) => user.cart)
   @JoinColumn({ name: 'userId' })

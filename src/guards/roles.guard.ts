@@ -25,13 +25,13 @@ export class RolesGuard implements CanActivate {
     if (!requiredRoles) return true;
 
     const req = ctx.switchToHttp().getRequest();
-    const supabaseId = req.user?.supabaseId;
-    if (!supabaseId) throw new UnauthorizedException();
+    const userId = req.user?.id;
+    if (!userId) throw new UnauthorizedException();
 
-    const user = await this.usersService.getUser(supabaseId);
+    const user = await this.usersService.findOne(userId);
     if (!user) throw new UnauthorizedException('User not found');
 
-    if (!requiredRoles.includes(user.role as UserRole)) {
+    if (!requiredRoles.includes(user.rol as UserRole)) {
       throw new ForbiddenException(
         `Requires one of: ${requiredRoles.join(', ')}`,
       );

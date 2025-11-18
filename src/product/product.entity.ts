@@ -1,5 +1,12 @@
 import { CartItem } from '../cart/cartItem.entity';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToMany,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { Discount } from '../discount/discount.entity';
 
 @Entity('product')
 export class Product {
@@ -94,4 +101,7 @@ export class Product {
 
   @OneToMany(() => CartItem, (item) => item.product)
   cartItems: CartItem[];
+
+  @ManyToMany(() => Discount, (discount) => discount.productos)
+  discounts: Discount[];
 }

@@ -6,24 +6,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductoModule } from './product/product.module';
 import { UserModule } from './user/user.module';
 import { CartModule } from './cart/cart.module';
-import supabaseConfig from './config/supabase.config';
 import serverConfig from './config/server.config';
 import postgresDbConfig from './config/postgresDb.config';
 import digitalOceanConfig from './config/digitalOcean.config';
 import * as path from 'path';
-import { SupabaseService } from './extraServices/supabase.service';
 import { AdminSettingsModule } from './admin-settings/admin-settings.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [
-        supabaseConfig,
-        serverConfig,
-        postgresDbConfig,
-        digitalOceanConfig,
-      ],
+      load: [serverConfig, postgresDbConfig, digitalOceanConfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -40,18 +34,20 @@ import { AdminSettingsModule } from './admin-settings/admin-settings.module';
           path.join(__dirname, 'cart', '**', '*.entity{.ts,.js}'),
           path.join(__dirname, '..', 'cartItem', '**', '*.entity{.ts,.js}'),
           path.join(__dirname, 'admin-settings', '**', '*.entity{.ts,.js}'),
+          path.join(__dirname, 'discount', '**', '*.entity{.ts,.js}'),
         ],
         synchronize: false,
       }),
       inject: [ConfigService],
     }),
+    AuthModule,
     ProductoModule,
     UserModule,
     CartModule,
     AdminSettingsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, SupabaseService],
+  providers: [AppService],
 })
 export class AppModule {
   constructor(private readonly configService: ConfigService) {}

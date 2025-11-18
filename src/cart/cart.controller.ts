@@ -45,7 +45,7 @@ export class CartController {
 
   @Post('/create')
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @ApiBearerAuth()
   @ApiOkResponse({ type: CartResponse })
   async createCart(

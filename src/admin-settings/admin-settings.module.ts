@@ -5,11 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminSetting } from './admin-setting.entity';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { UserModule } from 'src/user/user.module';
-import { SupabaseService } from 'src/extraServices/supabase.service';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   controllers: [AdminSettingsController],
-  providers: [AdminSettingsService, AuthGuard, SupabaseService],
-  imports: [TypeOrmModule.forFeature([AdminSetting]), UserModule],
+  providers: [AdminSettingsService, AuthGuard],
+  imports: [TypeOrmModule.forFeature([AdminSetting]), UserModule, AuthModule],
 })
 export class AdminSettingsModule {}

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 import { CartItemResponse } from './cartItemResponse.dto';
-import { IsArray, IsDate, IsNumber, IsString } from 'class-validator';
+import { IsArray, IsISO8601, IsNumber, IsString } from 'class-validator';
 
 @ApiSchema({
   name: 'CartResponseDto',
@@ -13,16 +13,18 @@ export class CartResponse {
   id: number;
 
   @ApiProperty({
-    description: 'Cart Created At',
+    description: 'Cart Created At (ISO 8601 string in GMT-3)',
+    type: String,
   })
-  @IsDate()
-  createdAt: Date;
+  @IsISO8601()
+  createdAt: string;
 
   @ApiProperty({
-    description: 'Cart Updated At',
+    description: 'Cart Updated At (ISO 8601 string in GMT-3)',
+    type: String,
   })
-  @IsDate()
-  updatedAt: Date;
+  @IsISO8601()
+  updatedAt: string;
 
   @ApiProperty({
     description: 'Cart User Id',

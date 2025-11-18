@@ -8,6 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { formatDateISO, now } from '../helpers/date.helper';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -45,7 +46,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Send the formatted response
     response.status(status).json({
       statusCode: status,
-      timestamp: new Date().toISOString(),
+      timestamp: formatDateISO(now()),
       path: request.url,
       message,
     });

@@ -3,13 +3,13 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './user.entity';
-import { SupabaseService } from 'src/extraServices/supabase.service';
 import { Cart } from 'src/cart/cart.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Cart])],
+  imports: [TypeOrmModule.forFeature([User, Cart]), AuthModule],
   controllers: [UserController],
-  providers: [UserService, SupabaseService],
+  providers: [UserService],
   exports: [UserService],
 })
 export class UserModule {}
