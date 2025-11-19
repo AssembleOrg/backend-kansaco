@@ -12,6 +12,7 @@ import digitalOceanConfig from './config/digitalOcean.config';
 import * as path from 'path';
 import { AdminSettingsModule } from './admin-settings/admin-settings.module';
 import { AuthModule } from './auth/auth.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AuthModule } from './auth/auth.module';
     UserModule,
     CartModule,
     AdminSettingsModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

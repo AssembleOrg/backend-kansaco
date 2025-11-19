@@ -6,7 +6,6 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
-  RelationId,
   UpdateDateColumn,
 } from 'typeorm';
 import { CartItem } from './cartItem.entity';
@@ -30,12 +29,12 @@ export class Cart {
   })
   updatedAt: DateTime;
 
-  @OneToOne(() => User, (user) => user.cart)
-  @JoinColumn({ name: 'userId' })
-  user: User;
-
-  @RelationId((cart: Cart) => cart.user)
+  @Column({ type: 'uuid', unique: true })
   userId: string;
+
+  @OneToOne(() => User, (user) => user.cart)
+  @JoinColumn({ name: 'userId', referencedColumnName: 'id' })
+  user: User;
 
   @OneToMany(() => CartItem, (item) => item.cart, {
     cascade: ['insert', 'update', 'remove'],

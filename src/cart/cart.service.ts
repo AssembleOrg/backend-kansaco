@@ -36,6 +36,21 @@ export class CartService {
         productId: item.productId,
         quantity: item.quantity,
         cartId: item.cartId,
+        product: item.product ? {
+          id: item.product.id,
+          name: item.product.name,
+          category: item.product.category,
+          price: item.product.price,
+          description: item.product.description,
+          imageUrl: item.product.imageUrl,
+          slug: item.product.slug,
+          sku: item.product.sku,
+          presentation: item.product.presentation,
+          aplication: item.product.aplication,
+          stock: item.product.stock,
+          wholeSaler: item.product.wholeSaler,
+          isVisible: item.product.isVisible,
+        } : null,
       })),
     };
   }
@@ -65,13 +80,14 @@ export class CartService {
   async createCart(userId: string): Promise<CartResponse> {
     const getUser = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['cart'],
+      relations: ['cart', 'cart.items', 'cart.items.product'],
     });
     if (!getUser) {
       throw new NotFoundException(`User ${userId} not found`);
     }
+    // Si el usuario ya tiene carrito, devolverlo en lugar de error
     if (getUser.cart) {
-      throw new BadRequestException(`User ${userId} already has a cart`);
+      return this.toCartResponse(getUser.cart);
     }
     const now = nowAsDate();
     const cart = this.cartRepository.create({

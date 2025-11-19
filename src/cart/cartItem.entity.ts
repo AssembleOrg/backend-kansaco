@@ -5,7 +5,6 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  RelationId,
 } from 'typeorm';
 import { Cart } from './cart.entity';
 import { Product } from '../product/product.entity';
@@ -15,24 +14,24 @@ export class CartItem {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ type: 'int' })
+  cartId: number;
+
   @ManyToOne(() => Cart, (cart) => cart.items, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'cartId' })
+  @JoinColumn({ name: 'cartId', referencedColumnName: 'id' })
   cart: Cart;
 
-  @RelationId((item: CartItem) => item.cart)
-  cartId: number;
+  @Column({ type: 'int' })
+  productId: number;
 
   @ManyToOne(() => Product, (product) => product.cartItems, {
     onDelete: 'RESTRICT',
     eager: true,
   })
-  @JoinColumn({ name: 'productId' })
+  @JoinColumn({ name: 'productId', referencedColumnName: 'id' })
   product: Product;
-
-  @RelationId((item: CartItem) => item.product)
-  productId: number;
 
   @Column({ type: 'int', default: 1 })
   quantity: number;

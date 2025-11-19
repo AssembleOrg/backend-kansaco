@@ -1,5 +1,6 @@
-import { ApiProperty, ApiSchema } from '@nestjs/swagger';
-import { IsNumber } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, ApiSchema } from '@nestjs/swagger';
+import { IsNumber, IsOptional } from 'class-validator';
+import { ProductResponse } from '../../product/dto/productResponse.dto';
 
 @ApiSchema({
   name: 'CartItemResponseDto',
@@ -28,4 +29,11 @@ export class CartItemResponse {
   })
   @IsNumber()
   cartId: number;
+
+  @ApiPropertyOptional({
+    description: 'Product details',
+    type: ProductResponse,
+  })
+  @IsOptional()
+  product?: ProductResponse | null;
 }

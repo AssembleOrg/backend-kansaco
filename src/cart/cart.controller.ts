@@ -16,24 +16,13 @@ import { CartResponse } from './dto/cartResponse.dto';
 import { ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { CartCreate } from './dto/cartCreate.dto';
-import { RolesGuard } from 'src/guards/roles.guard';
-import { Roles } from 'src/decorators/roles.decorator';
-import { UserRole } from 'src/user/user.enum';
 
 @Controller('cart')
 export class CartController {
   protected logger = new Logger('CartController');
   constructor(private readonly cartService: CartService) {}
 
-  @Get('/:id')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOkResponse({ type: CartResponse })
-  async getCart(@Param('id') id: number): Promise<CartResponse> {
-    return this.cartService.getCartByOwnId(id);
-  }
-
-  @Get('/:userId')
+  @Get('/user/:userId')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: CartResponse })
@@ -43,9 +32,16 @@ export class CartController {
     return this.cartService.getCartByUserId(userId);
   }
 
+  @Get('/:id')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: CartResponse })
+  async getCart(@Param('id') id: number): Promise<CartResponse> {
+    return this.cartService.getCartByOwnId(id);
+  }
+
   @Post('/create')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: CartResponse })
   async createCart(
