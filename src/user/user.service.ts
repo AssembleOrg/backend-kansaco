@@ -144,7 +144,7 @@ export class UserService {
 
     if (!user) {
       this.logger.warn(`User not found: ${normalizedEmail}`);
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Credenciales inválidas');
     }
 
     this.logger.log(`User found: ${user.email}, comparing password...`);
@@ -155,7 +155,7 @@ export class UserService {
 
     if (!isPasswordValid) {
       this.logger.warn(`Invalid password for user: ${normalizedEmail}`);
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Credenciales inválidas');
     }
 
     this.logger.log(`Login successful for user: ${user.email}`);

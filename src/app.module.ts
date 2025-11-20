@@ -13,6 +13,7 @@ import * as path from 'path';
 import { AdminSettingsModule } from './admin-settings/admin-settings.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
+import { OrderModule } from './order/order.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { EmailModule } from './email/email.module';
           path.join(__dirname, '..', 'cartItem', '**', '*.entity{.ts,.js}'),
           path.join(__dirname, 'admin-settings', '**', '*.entity{.ts,.js}'),
           path.join(__dirname, 'discount', '**', '*.entity{.ts,.js}'),
+          path.join(__dirname, 'order', '**', '*.entity{.ts,.js}'),
         ],
         synchronize: false,
       }),
@@ -47,6 +49,7 @@ import { EmailModule } from './email/email.module';
     CartModule,
     AdminSettingsModule,
     EmailModule,
+    OrderModule,
   ],
   controllers: [AppController],
   providers: [AppService],
