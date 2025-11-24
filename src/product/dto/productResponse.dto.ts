@@ -1,5 +1,6 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 import { IsArray, IsBoolean, IsNumber, IsString } from 'class-validator';
+import { ProductImageResponse } from './product-image-response.dto';
 
 @ApiSchema({ name: 'ProductResponseDto' })
 export class ProductResponse {
@@ -93,4 +94,12 @@ export class ProductResponse {
   })
   @IsBoolean()
   isVisible: boolean;
+
+  @ApiProperty({
+    description: 'Product Images',
+    type: [ProductImageResponse],
+    required: false,
+  })
+  @IsArray()
+  images?: ProductImageResponse[];
 }

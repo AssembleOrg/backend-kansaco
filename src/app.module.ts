@@ -14,6 +14,15 @@ import { AdminSettingsModule } from './admin-settings/admin-settings.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
 import { OrderModule } from './order/order.module';
+import { ImageModule } from './image/image.module';
+import { User } from './user/user.entity';
+import { Product } from './product/product.entity';
+import { ProductImage } from './product/product-image.entity';
+import { Cart } from './cart/cart.entity';
+import { CartItem } from './cart/cartItem.entity';
+import { AdminSetting } from './admin-settings/admin-setting.entity';
+import { Discount } from './discount/discount.entity';
+import { Order } from './order/order.entity';
 
 @Module({
   imports: [
@@ -31,13 +40,15 @@ import { OrderModule } from './order/order.module';
         password: configService.get<string>('postgres.password'),
         database: configService.get<string>('postgres.database'),
         entities: [
-          path.join(__dirname, 'product', '**', '*.entity{.ts,.js}'),
-          path.join(__dirname, 'user', '**', '*.entity{.ts,.js}'),
-          path.join(__dirname, 'cart', '**', '*.entity{.ts,.js}'),
-          path.join(__dirname, '..', 'cartItem', '**', '*.entity{.ts,.js}'),
-          path.join(__dirname, 'admin-settings', '**', '*.entity{.ts,.js}'),
-          path.join(__dirname, 'discount', '**', '*.entity{.ts,.js}'),
-          path.join(__dirname, 'order', '**', '*.entity{.ts,.js}'),
+          // Importar entidades directamente para evitar problemas con paths
+          User,
+          Product,
+          ProductImage,
+          Cart,
+          CartItem,
+          AdminSetting,
+          Discount,
+          Order,
         ],
         synchronize: false,
       }),
@@ -50,6 +61,7 @@ import { OrderModule } from './order/order.module';
     AdminSettingsModule,
     EmailModule,
     OrderModule,
+    ImageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

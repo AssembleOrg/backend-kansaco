@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Discount } from '../discount/discount.entity';
+import { ProductImage } from './product-image.entity';
 
 @Entity('product')
 export class Product {
@@ -104,4 +105,10 @@ export class Product {
 
   @ManyToMany(() => Discount, (discount) => discount.productos)
   discounts: Discount[];
+
+  @OneToMany(() => ProductImage, (image) => image.product, {
+    cascade: true,
+    eager: false,
+  })
+  images: ProductImage[];
 }

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 @ApiSchema({ name: 'ProductGetDto' })
 export class ProductGet {
@@ -44,8 +45,8 @@ export class ProductGet {
     type: Number,
     required: false,
   })
-  @IsString()
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : Number(value)))
   stock: number;
 
   @ApiProperty({
@@ -62,7 +63,12 @@ export class ProductGet {
     type: Boolean,
     required: false,
   })
-  @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
   isVisible: boolean;
 }
