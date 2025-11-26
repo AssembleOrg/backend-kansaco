@@ -1,5 +1,5 @@
 import { IsString, IsEmail, IsArray, IsNumber, IsOptional, IsEnum, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ContactInfoDto {
@@ -43,6 +43,7 @@ export class BusinessInfoDto {
 export class OrderItemDto {
   @ApiProperty({ description: 'ID del producto' })
   @IsNumber()
+  @Type(() => Number)
   productId: number;
 
   @ApiProperty({ description: 'Nombre del producto' })
@@ -51,12 +52,20 @@ export class OrderItemDto {
 
   @ApiProperty({ description: 'Cantidad' })
   @IsNumber()
+  @Type(() => Number)
   quantity: number;
 
   @ApiPropertyOptional({ description: 'Precio unitario' })
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
   unitPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Presentación del producto (e.g., "Balde 20 Litros")' })
+  @IsString()
+  @IsOptional()
+  presentation?: string;
 }
 
 export enum CustomerType {
@@ -92,6 +101,8 @@ export class SendOrderEmailDto {
   @ApiPropertyOptional({ description: 'Monto total' })
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
   totalAmount?: number;
 
   @ApiPropertyOptional({ description: 'Notas adicionales' })

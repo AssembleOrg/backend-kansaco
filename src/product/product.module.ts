@@ -19,5 +19,6 @@ import { ImageModule } from '../image/image.module';
   ],
   controllers: [ProductoController],
   providers: [ProductoService, AuthGuard, RolesGuard],
+  exports: [ProductoService],
 })
 export class ProductoModule {}

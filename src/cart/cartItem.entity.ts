@@ -35,4 +35,7 @@ export class CartItem {
 
   @Column({ type: 'int', default: 1 })
   quantity: number;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  presentation?: string;
 }

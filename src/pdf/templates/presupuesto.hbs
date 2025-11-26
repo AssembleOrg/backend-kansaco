@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Presupuesto {{presupuesto.numero}}</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 11px;
+        color: #333;
+        margin: 0;
+        padding: 20px 30px;
+        position: relative;
+      }
+
+      /* Marca de agua */
+      body::before {
+        content: "KANSACO";
+        position: fixed;
+        top: 40%;
+        left: -10%;
+        font-size: 120px;
+        color: rgba(22, 162, 69, 0.08);
+        transform: rotate(-45deg);
+        z-index: -1;
+        white-space: nowrap;
+        font-weight: bold;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+      }
+
+      .empresa-info {
+        display: flex;
+        align-items: flex-start;
+      }
+
+      .empresa-logo {
+        margin-right: 12px;
+      }
+
+      .empresa-logo img {
+        width: 65px;
+        height: auto;
+        display: block;
+      }
+
+      .empresa-text {
+        font-size: 11px;
+        color: #555;
+      }
+
+      .empresa-text .nombre {
+        font-size: 16px;
+        font-weight: bold;
+        color: #16a245;
+        margin-bottom: 2px;
+      }
+
+      .presupuesto-info {
+        text-align: right;
+        font-size: 11px;
+      }
+
+      .presupuesto-info .titulo {
+        font-weight: bold;
+      }
+
+      .divider {
+        border-top: 2px solid #16a245;
+        margin: 10px 0 25px;
+      }
+
+      .title-center {
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 15px;
+        letter-spacing: 1px;
+      }
+
+      .section-title {
+        font-weight: bold;
+        color: #16a245;
+        font-size: 11px;
+        text-transform: uppercase;
+        margin-top: 10px;
+        margin-bottom: 4px;
+      }
+
+      .client-table,
+      .products-table,
+      .cond-table,
+      .notes-box {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 12px;
+      }
+
+      .client-table td {
+        padding: 2px 3px;
+        vertical-align: top;
+        font-size: 10px;
+      }
+
+      .label {
+        font-weight: bold;
+      }
+
+      .products-table th {
+        background-color: #16a245;
+        color: white;
+        font-weight: bold;
+        text-align: left;
+        padding: 5px;
+        border: 1px solid #0d7a3a;
+        font-size: 11px;
+      }
+
+      .products-table td {
+        border: 1px solid #cccccc;
+        padding: 4px 5px;
+        font-size: 11px;
+      }
+
+      .products-table td.num {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .products-table tbody tr:nth-child(even) {
+        background-color: #f5f5f5;
+      }
+
+      .products-table tbody tr:nth-child(odd) {
+        background-color: #ffffff;
+      }
+
+      .totals {
+        width: 40%;
+        margin-left: auto;
+        margin-top: 8px;
+        font-size: 11px;
+      }
+
+      .totals td {
+        padding: 2px 3px;
+      }
+
+      .totals .label {
+        text-align: right;
+        width: 60%;
+      }
+
+      .totals .value {
+        text-align: right;
+        width: 40%;
+        font-weight: bold;
+      }
+
+      .totals .subtotal-row .value {
+        font-weight: normal;
+      }
+
+      .totals .total-row .value {
+        color: #16a245;
+        font-size: 12px;
+      }
+
+      .cond-table td {
+        padding: 2px 3px;
+        font-size: 10px;
+      }
+
+      .notes-box {
+        border: 1px solid #cccccc;
+        min-height: 45px;
+        padding: 8px;
+      }
+
+      .notes-title {
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+
+      .footer-text {
+        font-size: 8px;
+        color: #777;
+        margin-top: 18px;
+      }
+
+      .footer-text .no-valido {
+        font-weight: bold;
+        color: #ff0000;
+        margin-bottom: 4px;
+      }
+
+      .small {
+        font-size: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- HEADER -->
+    <div class="header">
+      <div class="empresa-info">
+        <div class="empresa-logo">
+          <img src="{{empresa.logoUrl}}" alt="Logo KANSACO" />
+        </div>
+        <div class="empresa-text">
+          <div class="nombre">{{empresa.nombre}}</div>
+          <div>CUIT: {{empresa.cuit}}</div>
+          <div>Localidad: {{empresa.localidad}}</div>
+          <div>Tel: {{empresa.telefono}}</div>
+          <div>Email: {{empresa.email}}</div>
+        </div>
+      </div>
+      <div class="presupuesto-info">
+        <div class="titulo">Presupuesto #{{presupuesto.numero}}</div>
+        <div>Fecha: {{presupuesto.fecha}}</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="title-center">PRESUPUESTO</div>
+
+    <!-- DATOS DEL CLIENTE -->
+    <div class="section-title">Datos del Cliente</div>
+    <table class="client-table">
+      <tr>
+        <td class="label">Razón Social:</td>
+        <td>{{cliente.razonSocial}}</td>
+        <td class="label">Email:</td>
+        <td>{{cliente.email}}</td>
+      </tr>
+      <tr>
+        <td class="label">Teléfono:</td>
+        <td>{{cliente.telefono}}</td>
+      </tr>
+      <tr>
+        <td class="label">Dirección:</td>
+        <td colspan="3">{{cliente.direccion}}</td>
+      </tr>
+    </table>
+
+    <!-- DETALLE DE PRODUCTOS -->
+    <div class="section-title">Detalle de Productos</div>
+    <table class="products-table">
+      <thead>
+        <tr>
+          <th style="width: 8%">Cant.</th>
+          <th style="width: 42%">Producto</th>
+          <th style="width: 15%">Presentación</th>
+          <th style="width: 15%">P. Unit.</th>
+          <th style="width: 20%">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each productos}}
+        <tr>
+          <td class="num">{{cantidad}}</td>
+          <td>{{nombre}}</td>
+          <td>{{presentacion}}</td>
+          <td class="num">-</td>
+          <td class="num">-</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <!-- TOTALES -->
+    <table class="totals">
+      <tr class="subtotal-row">
+        <td class="label">Subtotal:</td>
+        <td class="value">-</td>
+      </tr>
+      <tr class="subtotal-row">
+        <td class="label">IVA ({{totales.ivaPorcentaje}}%):</td>
+        <td class="value">-</td>
+      </tr>
+      <tr class="total-row">
+        <td class="label">TOTAL:</td>
+        <td class="value">-</td>
+      </tr>
+    </table>
+
+    <!-- CONDICIONES -->
+    <div class="section-title">Condiciones</div>
+    <table class="cond-table">
+      <tr>
+        <td class="label">Validez:</td>
+        <td>{{condiciones.validezDias}} días</td>
+      </tr>
+    </table>
+
+    <!-- NOTAS -->
+    {{#if condiciones.notas}}
+    <div class="section-title">Notas:</div>
+    <div class="notes-box">
+      <div>{{condiciones.notas}}</div>
+    </div>
+    {{/if}}
+
+    <!-- FOOTER -->
+    <div class="footer-text">
+      <div class="no-valido">NO VÁLIDO COMO FACTURA</div>
+      <div>
+        Este presupuesto no tiene validez como documento fiscal. Para consultas o cambios, contacte a
+        {{empresa.email}}.
+      </div>
+      <div class="small">
+        Documento generado el {{presupuesto.fecha}}.
+      </div>
+    </div>
+  </body>
+</html>
+

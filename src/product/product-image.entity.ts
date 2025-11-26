@@ -7,6 +7,8 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 import { Product } from './product.entity';
+import { DateTime } from 'luxon';
+import { dateTransformer } from '../database/date.transformer';
 
 @Entity('product_image')
 export class ProductImage {
@@ -48,7 +50,9 @@ export class ProductImage {
   })
   isPrimary: boolean; // Imagen principal
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @CreateDateColumn({
+    transformer: dateTransformer,
+  })
+  createdAt: DateTime;
 }
 

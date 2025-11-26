@@ -7,6 +7,8 @@ import {
 } from 'typeorm';
 import { OrderStatus } from './order.enum';
 import { CustomerType } from '../email/dto/send-order-email.dto';
+import { DateTime } from 'luxon';
+import { dateTransformer } from '../database/date.transformer';
 
 // Interfaces para los campos JSONB
 export interface OrderContactInfo {
@@ -28,6 +30,7 @@ export interface OrderItemData {
   productName: string;
   quantity: number;
   unitPrice?: number;
+  presentation?: string;
 }
 
 @Entity('order')
@@ -68,9 +71,15 @@ export class Order {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @CreateDateColumn({
+    type: 'timestamp',
+    transformer: dateTransformer,
+  })
+  createdAt: DateTime;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @UpdateDateColumn({
+    type: 'timestamp',
+    transformer: dateTransformer,
+  })
+  updatedAt: DateTime;
 }

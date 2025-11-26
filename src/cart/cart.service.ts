@@ -11,6 +11,7 @@ import { CartItem } from './cartItem.entity';
 import { User } from 'src/user/user.entity';
 import { nowAsDate, formatDateISO } from 'src/helpers/date.helper';
 import { CartResponse } from './dto/cartResponse.dto';
+import { Product } from '../product/product.entity';
 
 @Injectable()
 export class CartService {
@@ -23,6 +24,8 @@ export class CartService {
     private readonly cartItemRepository: Repository<CartItem>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
   ) {}
 
   private toCartResponse(cart: Cart): CartResponse {
@@ -36,6 +39,7 @@ export class CartService {
         productId: item.productId,
         quantity: item.quantity,
         cartId: item.cartId,
+        presentation: item.presentation || undefined,
         product: item.product ? {
           id: item.product.id,
           name: item.product.name,
@@ -100,10 +104,33 @@ export class CartService {
     return this.toCartResponse(savedCart);
   }
 
+  /**
+   * Valida que la presentación existe en las opciones del producto
+   */
+  private validatePresentation(product: Product, presentation?: string): boolean {
+    if (!presentation) {
+      return true; // Presentación es opcional
+    }
+
+    if (!product.presentation) {
+      return false; // El producto no tiene presentaciones definidas
+    }
+
+    // Dividir las presentaciones por coma y limpiar espacios
+    const validPresentations = product.presentation
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    // Verificar que la presentación proporcionada existe (case-sensitive)
+    return validPresentations.includes(presentation);
+  }
+
   async addItemToCart(
     cartId: number,
     productId: number,
     quantity: number,
+    presentation?: string,
   ): Promise<CartResponse> {
     // 1) Check the cart exists
     const cart = await this.cartRepository.findOne({ where: { id: cartId } });
@@ -111,28 +138,51 @@ export class CartService {
       throw new NotFoundException(`Cart ${cartId} not found`);
     }
 
-    // 2) Try to increment an existing row
-    const updateResult = await this.cartItemRepository
-      .createQueryBuilder()
-      .update(CartItem)
-      .set({ quantity: () => `"quantity" + ${quantity}` })
-      .where('cartId = :cartId AND productId = :productId', {
+    // 2) Check the product exists
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new NotFoundException(`Product ${productId} not found`);
+    }
+
+    // 3) Validate presentation if provided
+    if (presentation) {
+      const isValid = this.validatePresentation(product, presentation);
+      if (!isValid) {
+        throw new BadRequestException(
+          `La presentación "${presentation}" no es válida para este producto. Presentaciones disponibles: ${product.presentation || 'Ninguna'}`,
+        );
+      }
+    }
+
+    // 4) Buscar item existente por producto + presentación
+    // Normalizar: null y undefined se tratan igual para la búsqueda
+    const presentationValue = presentation || null;
+    const existingItem = await this.cartItemRepository.findOne({
+      where: {
         cartId,
         productId,
-      })
-      .execute();
+        presentation: presentationValue,
+      },
+    });
 
-    if (updateResult.affected === 0) {
-      // 3) No existing item → insert a new one
+    if (existingItem) {
+      // 5) Item existe con la misma presentación → incrementar cantidad
+      existingItem.quantity += quantity;
+      await this.cartItemRepository.save(existingItem);
+    } else {
+      // 6) No existe item con producto + presentación → crear nuevo item
       const newItem = this.cartItemRepository.create({
         cart,
         product: { id: productId } as any,
         quantity,
+        presentation: presentationValue,
       });
       await this.cartItemRepository.save(newItem);
     }
 
-    // 4) Return the cart *with* its items populated
+    // 7) Return the cart *with* its items populated
     const updatedCart = await this.cartRepository.findOne({
       where: { id: cartId },
       relations: ['items', 'items.product'],

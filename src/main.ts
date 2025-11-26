@@ -6,6 +6,7 @@ import { TransformInterceptor } from './interceptors/transform.interceptor';
 import { DateSerializeInterceptor } from './interceptors/date-serialize.interceptor';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 // middlewares de seguridad
 import helmet from 'helmet';
@@ -83,7 +84,35 @@ async function bootstrap() {
     swaggerOptions: { persistAuthorization: true },
   });
 
+  // Conectar a RabbitMQ como microservicio
   const configService = app.get(ConfigService);
+  const rabbitmqUrl = configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672');
+  const rabbitmqQueue = configService.get<string>('RABBITMQ_QUEUE', 'kansaco-queue');
+
+  try {
+    app.connectMicroservice<MicroserviceOptions>(
+      {
+        transport: Transport.RMQ,
+        options: {
+          urls: [rabbitmqUrl],
+          queue: rabbitmqQueue,
+          queueOptions: {
+            durable: true,
+          },
+          // NestJS microservices maneja automáticamente el exchange y routing keys
+          // basándose en los @EventPattern decorators
+        },
+      },
+      { inheritAppConfig: true },
+    );
+
+    await app.startAllMicroservices();
+    console.log(`📨 RabbitMQ microservice connected to queue: ${rabbitmqQueue}`);
+  } catch (error) {
+    console.error('⚠️  Error connecting to RabbitMQ:', error.message);
+    console.log('⚠️  Continuing without RabbitMQ microservice...');
+  }
+
   const port = configService.get<string>('server.port') || 3001;
   await app.listen(port);
   console.log(`🚀 Application is running on: http://localhost:${port}/api`);

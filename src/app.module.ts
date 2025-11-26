@@ -15,6 +15,7 @@ import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
 import { OrderModule } from './order/order.module';
 import { ImageModule } from './image/image.module';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { User } from './user/user.entity';
 import { Product } from './product/product.entity';
 import { ProductImage } from './product/product-image.entity';
@@ -62,6 +63,7 @@ import { Order } from './order/order.entity';
     EmailModule,
     OrderModule,
     ImageModule,
+    RabbitmqModule,
   ],
   controllers: [AppController],
   providers: [AppService],

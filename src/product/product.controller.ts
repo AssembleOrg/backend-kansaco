@@ -39,6 +39,7 @@ import { UserRole } from 'src/user/user.enum';
 import { ProductEdit } from './dto/productEdit.dto';
 import { ProductCreate } from './dto/productCreate.dto';
 import { ProductImageResponse } from './dto/product-image-response.dto';
+import { formatDateISO } from '../helpers/date.helper';
 import { AssociateImageDto } from './dto/associate-image.dto';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -49,6 +50,22 @@ import { ImageService } from '../image/image.service';
 @ApiTags('Kansaco - Products')
 export class ProductoController {
   protected logger = new Logger('ProductController');
+
+  /**
+   * Helper para convertir ProductImage a ProductImageResponse
+   * Convierte DateTime a string ISO en GMT-3
+   */
+  private toProductImageResponse(img: any): ProductImageResponse {
+    return {
+      id: img.id,
+      productId: img.productId,
+      imageUrl: img.imageUrl,
+      imageKey: img.imageKey,
+      order: img.order,
+      isPrimary: img.isPrimary,
+      createdAt: formatDateISO(img.createdAt),
+    };
+  }
   constructor(
     private readonly productoService: ProductoService,
     private readonly imageService: ImageService,
@@ -206,9 +223,7 @@ export class ProductoController {
     const product = await this.productoService.getProduct(id);
     const images = await this.productoService.getProductImages(id);
     const response = plainToInstance(ProductResponse, product);
-    response.images = images.map((img) =>
-      plainToInstance(ProductImageResponse, img),
-    );
+    response.images = images.map((img) => this.toProductImageResponse(img));
     return response;
   }
 
@@ -301,7 +316,14 @@ export class ProductoController {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    return this.productoService.updatePrices(file);
+    const products = await this.productoService.updatePrices(file);
+    return products.map((product) => {
+      const response = plainToInstance(ProductResponse, product);
+      if (product.images) {
+        response.images = product.images.map((img) => this.toProductImageResponse(img));
+      }
+      return response;
+    });
   }
 
   @Post('/:id/image')
@@ -364,7 +386,7 @@ export class ProductoController {
       isPrimaryBool,
     );
 
-    return plainToInstance(ProductImageResponse, productImage);
+    return this.toProductImageResponse(productImage);
   }
 
   @Get('/:id/images')
@@ -374,9 +396,7 @@ export class ProductoController {
     @Param('id') productId: number,
   ): Promise<ProductImageResponse[]> {
     const images = await this.productoService.getProductImages(productId);
-    return images.map((image) =>
-      plainToInstance(ProductImageResponse, image),
-    );
+    return images.map((image) => this.toProductImageResponse(image));
   }
 
   @Post('/:id/image/associate')
@@ -514,7 +534,7 @@ export class ProductoController {
     @Param('imageId') imageId: number,
   ): Promise<ProductImageResponse> {
     const image = await this.productoService.setPrimaryImage(imageId);
-    return plainToInstance(ProductImageResponse, image);
+    return this.toProductImageResponse(image);
   }
 
   @Patch('/:id/images/reorder')

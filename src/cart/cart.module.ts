@@ -8,14 +8,16 @@ import { AuthGuard } from 'src/guards/auth.guard';
 import { UserModule } from 'src/user/user.module';
 import { User } from 'src/user/user.entity';
 import { AuthModule } from 'src/auth/auth.module';
+import { Product } from '../product/product.entity';
 
 @Module({
   controllers: [CartController],
   providers: [CartService, AuthGuard],
   imports: [
-    TypeOrmModule.forFeature([Cart, CartItem, User]),
+    TypeOrmModule.forFeature([Cart, CartItem, User, Product]),
     UserModule,
     AuthModule,
   ],
+  exports: [CartService],
 })
 export class CartModule {}

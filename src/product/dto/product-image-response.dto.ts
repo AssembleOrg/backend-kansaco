@@ -38,9 +38,9 @@ export class ProductImageResponse {
   isPrimary: boolean;
 
   @ApiProperty({
-    description: 'Creation date',
-    example: '2024-11-24T10:30:00.000Z',
+    description: 'Creation date (ISO string in GMT-3)',
+    example: '2024-11-24T10:30:00.000-03:00',
   })
-  createdAt: Date;
+  createdAt: string; // Serializado como ISO string por DateSerializeInterceptor
 }
 

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, ApiSchema } from '@nestjs/swagger';
-import { IsNumber, IsOptional } from 'class-validator';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 import { ProductResponse } from '../../product/dto/productResponse.dto';
 
 @ApiSchema({
@@ -29,6 +29,14 @@ export class CartItemResponse {
   })
   @IsNumber()
   cartId: number;
+
+  @ApiPropertyOptional({
+    description: 'Product presentation (e.g., "Balde 20 Litros", "Bidón 1 Litro")',
+    example: 'Balde 20 Litros',
+  })
+  @IsOptional()
+  @IsString()
+  presentation?: string;
 
   @ApiPropertyOptional({
     description: 'Product details',

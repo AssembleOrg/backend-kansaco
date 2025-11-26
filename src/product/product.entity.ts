@@ -53,7 +53,7 @@ export class Product {
   @Column({
     type: 'varchar',
     nullable: false,
-    length: 120,
+    length: 250,
   })
   presentation: string;
 

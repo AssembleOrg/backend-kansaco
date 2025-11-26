@@ -58,8 +58,14 @@ export class CartController {
     @Param('cartId') cartId: number,
     @Param('productId') productId: number,
     @Query('quantity') quantity?: number,
+    @Query('presentation') presentation?: string,
   ): Promise<CartResponse> {
-    return this.cartService.addItemToCart(cartId, productId, quantity ?? 1);
+    return this.cartService.addItemToCart(
+      cartId,
+      productId,
+      quantity ?? 1,
+      presentation,
+    );
   }
 
   @Patch('/:cartId/delete/product/:productId')

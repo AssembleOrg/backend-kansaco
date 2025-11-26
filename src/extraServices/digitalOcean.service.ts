@@ -31,6 +31,7 @@ export class DigitalOceanService {
     );
     const do_region = this.configService.get<string>('digitalOcean.do_region');
     const do_url = this.configService.get<string>('digitalOcean.do_url');
+    const do_cdn_url = this.configService.get<string>('digitalOcean.do_cdn_url');
 
     // Validar que las variables requeridas estén configuradas
     if (!do_access_key || !do_secret_key || !do_spaces_endpoint || !do_region) {
@@ -94,20 +95,27 @@ export class DigitalOceanService {
     });
 
     // Construir la URL base del bucket para acceso público
-    // Formato: https://{bucket-name}.{region}.digitaloceanspaces.com
-    if (do_url) {
+    // Prioridad: CDN URL > DO_URL > Construir desde región
+    // Formato CDN: https://{bucket-name}.{region}.cdn.digitaloceanspaces.com
+    // Formato directo: https://{bucket-name}.{region}.digitaloceanspaces.com
+    if (do_cdn_url) {
+      // Si DO_CDN_URL está configurado, usarlo (tiene prioridad)
+      // Ejemplo: https://kansaco-images.nyc3.cdn.digitaloceanspaces.com
+      this.baseUrl = do_cdn_url.endsWith('/') ? do_cdn_url.slice(0, -1) : do_cdn_url;
+      this.logger.debug(`Using CDN URL: ${this.baseUrl}`);
+    } else if (do_url) {
       // Si do_url está configurado, usarlo directamente (debe ser la URL completa del bucket)
       // Ejemplo: https://kansaco-images.nyc3.digitaloceanspaces.com
       this.baseUrl = do_url.endsWith('/') ? do_url.slice(0, -1) : do_url;
       this.logger.debug(`Using configured DO_URL: ${this.baseUrl}`);
     } else if (do_region) {
-      // Construir URL desde la región
+      // Construir URL desde la región (sin CDN)
       this.baseUrl = `https://${this.bucketName}.${do_region}.digitaloceanspaces.com`;
       this.logger.debug(`Constructed base URL from region: ${this.baseUrl}`);
     } else {
       // Fallback
       this.logger.warn(
-        'No DO_URL or DO_REGION configured. Using default URL format.',
+        'No DO_CDN_URL, DO_URL or DO_REGION configured. Using default URL format.',
       );
       this.baseUrl = `https://${this.bucketName}.nyc3.digitaloceanspaces.com`;
     }
@@ -143,15 +151,25 @@ export class DigitalOceanService {
   async uploadFile(
     fileName: string,
     fileContent: Buffer,
+    contentType?: string,
   ): Promise<PutObjectCommandOutput> {
     try {
+      // Determinar el Content-Type basado en la extensión del archivo
+      const detectedContentType = contentType || this.getContentType(fileName);
+      
       const params = {
         Bucket: this.bucketName,
         Key: fileName,
         Body: fileContent,
         ACL: ObjectCannedACL.public_read,
+        ContentType: detectedContentType,
+        // Headers de cache para reducir bandwidth
+        // Cache-Control: max-age=31536000 = 1 año (las imágenes no cambian frecuentemente)
+        // Expires: fecha de expiración (1 año desde ahora)
+        CacheControl: 'public, max-age=31536000, immutable',
+        Expires: new Date(Date.now() + 31536000 * 1000), // 1 año desde ahora
       };
-      this.logger.debug(`Uploading file: ${fileName} to bucket: ${this.bucketName}`);
+      this.logger.debug(`Uploading file: ${fileName} to bucket: ${this.bucketName} with cache headers`);
       const uploaded = await this.s3.send(new PutObjectCommand(params));
       this.logger.debug(`File uploaded successfully: ${fileName}`);
       return uploaded;
@@ -166,6 +184,22 @@ export class DigitalOceanService {
       })}`);
       throw new Error(`Error uploading file to DigitalOcean: ${e.message || e}`);
     }
+  }
+
+  /**
+   * Determina el Content-Type basado en la extensión del archivo
+   */
+  private getContentType(fileName: string): string {
+    const ext = fileName.toLowerCase().split('.').pop();
+    const contentTypes: Record<string, string> = {
+      webp: 'image/webp',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      svg: 'image/svg+xml',
+    };
+    return contentTypes[ext || ''] || 'application/octet-stream';
   }
 
   async listObjects(
