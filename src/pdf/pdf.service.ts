@@ -17,20 +17,26 @@ export class PdfService {
     // En desarrollo: src/pdf/templates/presupuesto.hbs
     // En producción: dist/pdf/templates/presupuesto.hbs
     const templatePath = path.join(__dirname, 'templates', 'presupuesto.hbs');
-    
+
     // Si no existe en __dirname (producción), intentar desde process.cwd() (desarrollo)
     let finalPath = templatePath;
     if (!fs.existsSync(templatePath)) {
-      const devPath = path.join(process.cwd(), 'src', 'pdf', 'templates', 'presupuesto.hbs');
+      const devPath = path.join(
+        process.cwd(),
+        'src',
+        'pdf',
+        'templates',
+        'presupuesto.hbs',
+      );
       if (fs.existsSync(devPath)) {
         finalPath = devPath;
       }
     }
-    
+
     try {
       const html = fs.readFileSync(finalPath, 'utf8');
       this.template = Handlebars.compile(html);
-      
+
       // Registrar helpers de Handlebars
       Handlebars.registerHelper('currency', (value: number) => {
         if (value === null || value === undefined || isNaN(value)) {
@@ -42,10 +48,12 @@ export class PdfService {
           minimumFractionDigits: 2,
         });
       });
-      
+
       this.logger.log(`Plantilla Handlebars cargada desde: ${finalPath}`);
     } catch (error: any) {
-      this.logger.error(`Error cargando plantilla desde ${finalPath}: ${error.message}`);
+      this.logger.error(
+        `Error cargando plantilla desde ${finalPath}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -90,16 +98,20 @@ export class PdfService {
           launchOptions.executablePath = puppeteerExecutablePath;
           this.logger.log(`Usando Chrome desde: ${puppeteerExecutablePath}`);
         } else {
-          this.logger.warn(`Chrome no encontrado en: ${puppeteerExecutablePath}. Puppeteer intentará encontrarlo automáticamente.`);
+          this.logger.warn(
+            `Chrome no encontrado en: ${puppeteerExecutablePath}. Puppeteer intentará encontrarlo automáticamente.`,
+          );
         }
       } catch (error: any) {
-        this.logger.warn(`Error obteniendo ruta de Chrome: ${error.message}. Puppeteer intentará encontrarlo automáticamente.`);
+        this.logger.warn(
+          `Error obteniendo ruta de Chrome: ${error.message}. Puppeteer intentará encontrarlo automáticamente.`,
+        );
       }
 
       const browser = await puppeteer.launch(launchOptions);
 
       const page = await browser.newPage();
-      
+
       // Configurar viewport para A4
       await page.setViewport({
         width: 794, // A4 width in pixels at 96 DPI
@@ -143,7 +155,7 @@ export class PdfService {
     // Cargar y convertir logo a base64
     const logoPath = path.join(process.cwd(), 'public', 'LogKan.webp');
     let logoBase64 = '';
-    
+
     try {
       if (fs.existsSync(logoPath)) {
         // Convertir WebP a PNG y luego a base64
@@ -180,15 +192,16 @@ export class PdfService {
     const total = subtotal + ivaMonto;
 
     // Obtener localidad del cliente
-    const localidad = orderData.businessInfo?.codigoPostal || 'CABA, Buenos Aires';
+    const localidad =
+      orderData.businessInfo?.codigoPostal || 'CABA, Buenos Aires';
 
     return {
       empresa: {
-        nombre: 'KANSACO',
-        cuit: 'XX-XXXXXXXX-X',
-        localidad: 'Buenos Aires, Argentina',
-        telefono: '+54 11 XXXX-XXXX',
-        email: 'ventas@kansaco.com',
+        nombre: 'Kansaco Petroquimica S.A',
+        cuit: '30-58610901-0',
+        localidad: 'Magallanes 2031 Florencio Varela',
+        telefono: '4237-2636',
+        email: 'info@kansaco.com',
         logoUrl: logoBase64,
       },
       presupuesto: {
