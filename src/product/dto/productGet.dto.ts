@@ -71,4 +71,18 @@ export class ProductGet {
   })
   @IsBoolean()
   isVisible: boolean;
+
+  @ApiProperty({
+    description: 'Product IsFeatured',
+    type: Boolean,
+    required: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
+  isFeatured: boolean;
 }

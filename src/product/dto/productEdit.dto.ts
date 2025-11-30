@@ -46,6 +46,13 @@ export class ProductEdit {
   isVisible: boolean;
 
   @ApiProperty({
+    description: 'Product IsFeatured',
+  })
+  @IsBoolean()
+  @IsOptional()
+  isFeatured: boolean;
+
+  @ApiProperty({
     description: 'Product Description',
   })
   @IsString()

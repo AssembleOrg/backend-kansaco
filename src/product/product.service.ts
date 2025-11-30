@@ -48,14 +48,14 @@ export class ProductoService {
         qb.andWhere(`product.category && ARRAY[:...${paramName}]::text[]`, {
           [paramName]: categories,
         });
-      } else if (key === 'stock' || key === 'isVisible') {
+      } else if (key === 'stock' || key === 'isVisible' || key === 'isFeatured') {
         // Para campos numéricos y booleanos, usar igualdad exacta
         qb.andWhere(`product.${key} = :${paramName}`, {
           [paramName]: value,
         });
       } else {
-        // Para campos de texto, usar LIKE
-        qb.andWhere(`product.${key} LIKE :${paramName}`, {
+        // Para campos de texto, usar LOWER() para búsqueda case-insensitive
+        qb.andWhere(`LOWER(product.${key}) LIKE LOWER(:${paramName})`, {
           [paramName]: `%${value}%`,
         });
       }

@@ -54,6 +54,7 @@ export class CartService {
           stock: item.product.stock,
           wholeSaler: item.product.wholeSaler,
           isVisible: item.product.isVisible,
+          isFeatured: item.product.isFeatured,
         } : null,
       })),
     };

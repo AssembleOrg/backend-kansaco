@@ -52,6 +52,13 @@ export class ProductCreate {
   isVisible: boolean;
 
   @ApiProperty({
+    description: 'Product IsFeatured',
+  })
+  @IsNotEmpty()
+  @IsBoolean()
+  isFeatured: boolean;
+
+  @ApiProperty({
     description: 'Product Description',
   })
   @IsNotEmpty()

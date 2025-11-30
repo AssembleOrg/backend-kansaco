@@ -92,6 +92,12 @@ export class Product {
   isVisible: boolean;
 
   @Column({
+    type: 'boolean',
+    default: false,
+  })
+  isFeatured: boolean;
+
+  @Column({
     type: 'numeric',
     nullable: false,
     precision: 15,

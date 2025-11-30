@@ -96,6 +96,13 @@ export class ProductResponse {
   isVisible: boolean;
 
   @ApiProperty({
+    description: 'Product IsFeatured',
+    type: Boolean,
+  })
+  @IsBoolean()
+  isFeatured: boolean;
+
+  @ApiProperty({
     description: 'Product Images',
     type: [ProductImageResponse],
     required: false,

@@ -487,7 +487,7 @@ export class ProductoController {
       `Successfully associated image ${foundKey} to product ${productId}. Image ID: ${productImage.id}`,
     );
 
-    return plainToInstance(ProductImageResponse, productImage);
+    return this.toProductImageResponse(productImage);
   }
 
   @Delete('/:id/image/:imageId')
