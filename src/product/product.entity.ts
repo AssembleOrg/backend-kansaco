@@ -51,9 +51,8 @@ export class Product {
   description: string;
 
   @Column({
-    type: 'varchar',
+    type: 'text',
     nullable: false,
-    length: 250,
   })
   presentation: string;
 
@@ -67,14 +66,13 @@ export class Product {
   @Column({
     type: 'varchar',
     nullable: true,
-    length: 200,
+    length: 250,
   })
   imageUrl: string;
 
   @Column({
-    type: 'varchar',
+    type: 'text',
     nullable: true,
-    length: 100,
   })
   wholeSaler: string;
 

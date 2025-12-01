@@ -1,5 +1,5 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 
 @ApiSchema({ name: 'ProductoEditDto' })
 export class ProductEdit {
@@ -34,6 +34,7 @@ export class ProductEdit {
   @ApiProperty({
     description: 'Product WholeSaler',
   })
+  @MaxLength(10000)
   @IsString()
   @IsOptional()
   wholeSaler: string;

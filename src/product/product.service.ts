@@ -336,7 +336,14 @@ export class ProductoService {
       isPrimary,
     });
 
-    return await this.productImageRepository.save(productImage);
+    const savedImage = await this.productImageRepository.save(productImage);
+
+    // Si esta imagen es principal, actualizar el imageUrl del producto
+    if (isPrimary) {
+      await this.updateProductImageUrl(productId);
+    }
+
+    return savedImage;
   }
 
   async getProductImages(productId: number): Promise<ProductImage[]> {
@@ -344,6 +351,50 @@ export class ProductoService {
       where: { productId },
       order: { order: 'ASC', id: 'ASC' },
     });
+  }
+
+  /**
+   * Actualiza el imageUrl del producto basándose en la imagen principal o la primera imagen
+   * Prioridad: 1) isPrimary = true, 2) order = 0, 3) primera imagen por orden
+   */
+  private async updateProductImageUrl(productId: number): Promise<void> {
+    // Buscar la imagen principal (isPrimary = true)
+    let primaryImage = await this.productImageRepository.findOne({
+      where: { productId, isPrimary: true },
+      order: { order: 'ASC' },
+    });
+
+    // Si no hay imagen principal, buscar la imagen con order = 0
+    if (!primaryImage) {
+      primaryImage = await this.productImageRepository.findOne({
+        where: { productId, order: 0 },
+        order: { id: 'ASC' },
+      });
+    }
+
+    // Si aún no hay imagen, buscar la primera imagen por orden
+    if (!primaryImage) {
+      primaryImage = await this.productImageRepository.findOne({
+        where: { productId },
+        order: { order: 'ASC', id: 'ASC' },
+      });
+    }
+
+    // Actualizar el imageUrl del producto
+    if (primaryImage) {
+      await this.productRepository.update(productId, {
+        imageUrl: primaryImage.imageUrl,
+      });
+      this.logger.debug(
+        `Updated product ${productId} imageUrl to: ${primaryImage.imageUrl}`,
+      );
+    } else {
+      // Si no hay imágenes, limpiar el imageUrl
+      await this.productRepository.update(productId, {
+        imageUrl: null,
+      });
+      this.logger.debug(`Cleared product ${productId} imageUrl (no images)`);
+    }
   }
 
   async deleteProductImage(imageId: number): Promise<void> {
@@ -355,7 +406,11 @@ export class ProductoService {
       throw new BadRequestException(`Image with id: ${imageId} not found`);
     }
 
+    const productId = image.productId;
     await this.productImageRepository.remove(image);
+
+    // Actualizar el imageUrl del producto después de eliminar la imagen
+    await this.updateProductImageUrl(productId);
   }
 
   async setPrimaryImage(imageId: number): Promise<ProductImage> {
@@ -376,7 +431,12 @@ export class ProductoService {
 
     // Establecer esta como principal
     image.isPrimary = true;
-    return await this.productImageRepository.save(image);
+    const savedImage = await this.productImageRepository.save(image);
+
+    // Actualizar el imageUrl del producto con la nueva imagen principal
+    await this.updateProductImageUrl(image.productId);
+
+    return savedImage;
   }
 
   async reorderProductImages(
@@ -455,6 +515,10 @@ export class ProductoService {
         { order: i },
       );
     }
+
+    // Actualizar el imageUrl del producto después de reordenar
+    // (por si la primera imagen cambió o si no hay imagen principal)
+    await this.updateProductImageUrl(productId);
 
     this.logger.debug(
       `Successfully reordered ${uniqueImageIds.length} images for product ${productId}`,

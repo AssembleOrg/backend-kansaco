@@ -40,7 +40,7 @@ export class ProductCreate {
   @ApiProperty({
     description: 'Product WholeSaler',
   })
-  @MaxLength(120)
+  @MaxLength(10000)
   @IsOptional()
   wholeSaler: string;
 
@@ -62,14 +62,14 @@ export class ProductCreate {
     description: 'Product Description',
   })
   @IsNotEmpty()
-  @MaxLength(120)
+  @MaxLength(10000)
   description: string;
 
   @ApiProperty({
     description: 'Product Presentation',
   })
   @IsNotEmpty()
-  @MaxLength(120)
+  @MaxLength(10000)
   presentation: string;
 
   @ApiProperty({
@@ -82,7 +82,7 @@ export class ProductCreate {
   @ApiProperty({
     description: 'Product ImageUrl',
   })
-  @MaxLength(120)
+  @MaxLength(250)
   @IsOptional()
   imageUrl: string;
 

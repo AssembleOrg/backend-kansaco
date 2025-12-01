@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DigitalOceanService } from '../extraServices/digitalOcean.service';
 import { PaginatedImageResponse, ImageResponse } from './dto/image-response.dto';
 import { ListImagesQueryDto } from './dto/list-images-query.dto';
+import { cleanImageName } from '../helpers/image.helper';
 import * as path from 'path';
 const sharp = require('sharp');
 
@@ -43,7 +44,10 @@ export class ImageService {
       .toLowerCase();
     
     // Siempre usar extensión .webp
-    const finalFileName = `${sanitizedName}.webp`;
+    let finalFileName = `${sanitizedName}.webp`;
+    
+    // Limpiar extensiones intermedias (ej: "imagen.jpg.webp" -> "imagen.webp")
+    finalFileName = cleanImageName(finalFileName);
     
     // Guardar directamente en la raíz del bucket, sin subcarpetas
     // Si se especifica una carpeta, usarla, pero sin anidamiento

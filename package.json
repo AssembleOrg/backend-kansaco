@@ -31,7 +31,9 @@
     "products:update-imageurl": "ts-node -r tsconfig-paths/register scripts/update-product-imageurl.ts",
     "urls:update-to-cdn": "ts-node -r tsconfig-paths/register scripts/update-urls-to-cdn.ts",
     "products:list-by-presentation": "ts-node -r tsconfig-paths/register scripts/list-products-by-presentation.ts",
-    "dates:migrate-to-luxon": "ts-node -r tsconfig-paths/register scripts/migrate-dates-to-luxon-gmt3.ts"
+    "dates:migrate-to-luxon": "ts-node -r tsconfig-paths/register scripts/migrate-dates-to-luxon-gmt3.ts",
+    "products:delete-with-fix": "ts-node -r tsconfig-paths/register scripts/delete-products-with-fix.ts",
+    "images:fix-double-extensions": "ts-node -r tsconfig-paths/register scripts/fix-image-names-with-double-extensions.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.797.0",

@@ -45,6 +45,7 @@ import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ImageService } from '../image/image.service';
+import { cleanImageKey } from '../helpers/image.helper';
 
 @Controller('product')
 @ApiTags('Kansaco - Products')
@@ -426,8 +427,10 @@ export class ProductoController {
       throw new BadRequestException('imageKey is required');
     }
 
-    // Limpiar el imageKey (remover barras iniciales si las hay)
-    const cleanKey = imageKey.trim().replace(/^\/+/, '');
+    // Limpiar el imageKey (remover barras iniciales y extensiones intermedias)
+    let cleanKey = imageKey.trim().replace(/^\/+/, '');
+    // Limpiar extensiones intermedias (ej: "imagen.jpg.webp" -> "imagen.webp")
+    cleanKey = cleanImageKey(cleanKey);
 
     // Intentar encontrar la imagen en diferentes ubicaciones posibles
     // 1. Tal cual viene (raíz o con prefijo)
@@ -437,6 +440,17 @@ export class ProductoController {
       cleanKey,
       cleanKey.startsWith('products/') ? cleanKey.replace('products/', '') : `products/${cleanKey}`,
     ];
+    
+    // También intentar con la versión sin limpiar (por si el archivo en el bucket tiene el nombre original)
+    const originalCleanKey = imageKey.trim().replace(/^\/+/, '');
+    if (originalCleanKey !== cleanKey) {
+      possibleKeys.push(originalCleanKey);
+      if (originalCleanKey.startsWith('products/')) {
+        possibleKeys.push(originalCleanKey.replace('products/', ''));
+      } else {
+        possibleKeys.push(`products/${originalCleanKey}`);
+      }
+    }
 
     // Eliminar duplicados
     const uniqueKeys = [...new Set(possibleKeys)];
@@ -495,11 +509,18 @@ export class ProductoController {
   @UseGuards(AuthGuard, RolesGuard)
   @ApiBearerAuth()
   @ApiOkResponse()
+  @ApiQuery({
+    name: 'deleteFromBucket',
+    type: Boolean,
+    required: false,
+    description: 'If true, also delete the image from Digital Ocean bucket. Default: false',
+  })
   async deleteProductImage(
     @Param('id') productId: number,
     @Param('imageId') imageId: number,
+    @Query('deleteFromBucket') deleteFromBucket?: string,
   ): Promise<{ message: string }> {
-    // Obtener la imagen para eliminar del bucket
+    // Obtener la imagen
     const images = await this.productoService.getProductImages(productId);
     const image = images.find((img) => img.id === imageId);
 
@@ -509,19 +530,35 @@ export class ProductoController {
       );
     }
 
-    // Eliminar del bucket
-    try {
-      await this.imageService.deleteImage(image.imageKey);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to delete image from bucket: ${error.message}`,
+    // Solo eliminar del bucket si se solicita explícitamente
+    // Por defecto, NO se elimina del bucket para evitar pérdidas accidentales
+    const shouldDeleteFromBucket = deleteFromBucket === 'true' || deleteFromBucket === '1';
+    
+    if (shouldDeleteFromBucket) {
+      try {
+        await this.imageService.deleteImage(image.imageKey);
+        this.logger.log(
+          `Image ${image.imageKey} deleted from bucket for product ${productId}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete image from bucket: ${error.message}`,
+        );
+      }
+    } else {
+      this.logger.log(
+        `Image ${imageId} removed from product ${productId} (not deleted from bucket). Use ?deleteFromBucket=true to delete from bucket.`,
       );
     }
 
-    // Eliminar de la base de datos
+    // Eliminar de la base de datos (siempre)
     await this.productoService.deleteProductImage(imageId);
 
-    return { message: 'Image deleted successfully' };
+    return { 
+      message: shouldDeleteFromBucket 
+        ? 'Image deleted successfully from database and bucket' 
+        : 'Image removed from product (still in bucket). Use ?deleteFromBucket=true to delete from bucket.',
+    };
   }
 
   @Patch('/:id/image/:imageId/primary')
