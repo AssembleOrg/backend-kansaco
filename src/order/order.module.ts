@@ -5,9 +5,10 @@ import { OrderController } from './order.controller';
 import { Order } from './order.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
+import { PdfModule } from '../pdf/pdf.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order]), AuthModule, UserModule],
+  imports: [TypeOrmModule.forFeature([Order]), AuthModule, UserModule, PdfModule],
   controllers: [OrderController],
   providers: [OrderService],
   exports: [OrderService],

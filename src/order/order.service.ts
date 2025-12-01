@@ -83,6 +83,39 @@ export class OrderService {
     };
   }
 
+  async findAllPaginated(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{
+    data: Order[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await this.orderRepository.findAndCount({
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: orders,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+  }
+
   async updateStatus(id: string, status: OrderStatus): Promise<Order> {
     const order = await this.findOne(id);
     order.status = status;

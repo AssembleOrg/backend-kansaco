@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { PresupuestoData, PresupuestoProducto } from './presupuesto.types';
+import { Order } from '../order/order.entity';
 const sharp = require('sharp');
 
 @Injectable()
@@ -56,6 +57,32 @@ export class PdfService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Genera un PDF de presupuesto desde una Order entity
+   */
+  async generatePresupuestoPdfFromOrder(
+    order: Order,
+    presupuestoNumber: string,
+  ): Promise<Buffer> {
+    // Convertir Order a SendOrderEmailDto
+    const orderData: SendOrderEmailDto = {
+      customerType: order.customerType,
+      contactInfo: order.contactInfo,
+      businessInfo: order.businessInfo,
+      items: order.items.map((item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        presentation: item.presentation,
+      })),
+      totalAmount: order.totalAmount ? Number(order.totalAmount) : undefined,
+      notes: order.notes,
+    };
+
+    return this.generatePresupuestoPdf(orderData, presupuestoNumber);
   }
 
   /**
