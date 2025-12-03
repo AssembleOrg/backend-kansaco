@@ -103,7 +103,6 @@ export class PdfService {
       const html = this.template(presupuestoData);
 
       // Generar PDF con Puppeteer
-      // En producción (Railway, Docker, etc.), Puppeteer necesita configuración especial
       const launchOptions: any = {
         headless: true,
         args: [
@@ -113,12 +112,9 @@ export class PdfService {
           '--disable-gpu',
           '--disable-software-rasterizer',
           '--disable-extensions',
-          '--single-process', // Útil para entornos con recursos limitados
         ],
       };
 
-      // Intentar obtener el ejecutable de Chrome de Puppeteer
-      // Esto funciona tanto en desarrollo como en producción si Chrome está instalado
       try {
         const puppeteerExecutablePath = puppeteer.executablePath();
         if (puppeteerExecutablePath && fs.existsSync(puppeteerExecutablePath)) {
@@ -136,21 +132,18 @@ export class PdfService {
       }
 
       const browser = await puppeteer.launch(launchOptions);
-
       const page = await browser.newPage();
 
-      // Configurar viewport para A4
       await page.setViewport({
-        width: 794, // A4 width in pixels at 96 DPI
-        height: 1123, // A4 height in pixels at 96 DPI
+        width: 794,
+        height: 1123,
       });
 
-      // Cargar HTML
       await page.setContent(html, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'load',
+        timeout: 30000,
       });
 
-      // Generar PDF
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,

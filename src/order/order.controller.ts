@@ -24,6 +24,7 @@ import { Response } from 'express';
 import { OrderService } from './order.service';
 import { Order } from './order.entity';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 import { AuthGuard } from '../guards/auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -304,6 +305,24 @@ export class OrderController {
     @Body() updateStatusDto: UpdateOrderStatusDto,
   ): Promise<{ status: string; data: Order }> {
     const order = await this.orderService.updateStatus(id, updateStatusDto.status);
+    return { status: 'success', data: order };
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Actualizar una orden (solo PENDIENTE)' })
+  @ApiResponse({ status: 200, description: 'Orden actualizada correctamente' })
+  @ApiResponse({ status: 403, description: 'No autorizado para editar esta orden' })
+  @ApiResponse({ status: 400, description: 'Orden no puede ser editada (no está PENDIENTE)' })
+  @ApiResponse({ status: 404, description: 'Orden no encontrada' })
+  async updateOrder(
+    @Param('id') id: string,
+    @Body() updateOrderDto: UpdateOrderDto,
+    @Request() req: { user: { id: string; rol: string } },
+  ): Promise<{ status: string; data: Order }> {
+    const userId = req.user.id;
+    const userRole = req.user.rol as UserRole;
+
+    const order = await this.orderService.update(id, updateOrderDto, userId, userRole);
     return { status: 'success', data: order };
   }
 
