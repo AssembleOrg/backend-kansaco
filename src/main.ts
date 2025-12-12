@@ -31,8 +31,9 @@ async function bootstrap() {
   );
 
   // Enable CORS with proper configuration (after Helmet to ensure headers are set)
+  // Only allow requests from the production frontend
   app.enableCors({
-    origin: true, // Allow all origins in development
+    origin: 'https://frontend-kansaco-production.up.railway.app',
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
