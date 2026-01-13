@@ -1,5 +1,6 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { DigitalOceanService } from '../extraServices/digitalOcean.service';
+import { ProductoService } from '../product/product.service';
 import { PaginatedImageResponse, ImageResponse } from './dto/image-response.dto';
 import { ListImagesQueryDto } from './dto/list-images-query.dto';
 import { cleanImageName } from '../helpers/image.helper';
@@ -10,7 +11,11 @@ const sharp = require('sharp');
 export class ImageService {
   private readonly logger = new Logger(ImageService.name);
 
-  constructor(private readonly digitalOceanService: DigitalOceanService) {}
+  constructor(
+    private readonly digitalOceanService: DigitalOceanService,
+    @Inject(forwardRef(() => ProductoService))
+    private readonly productoService: ProductoService,
+  ) {}
 
   async uploadImage(
     file: Express.Multer.File,
@@ -149,8 +154,45 @@ export class ImageService {
 
   async deleteImage(key: string): Promise<void> {
     try {
-      await this.digitalOceanService.deleteFile(key);
+      // Primero eliminar la imagen de todos los productos que la usan
+      // Esto reordena las imágenes restantes y actualiza el imageUrl de cada producto
+      try {
+        await this.productoService.deleteImageByKeyAndReorder(key);
+        this.logger.debug(
+          `Successfully removed image key ${key} from all products`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error removing image key ${key} from products: ${error.message}`,
+          error.stack,
+        );
+        // Si falla la eliminación de productos, no continuar con la eliminación del bucket
+        // para evitar inconsistencias (imagen eliminada del bucket pero referencias rotas en BD)
+        throw new BadRequestException(
+          'Failed to remove image from products. Image not deleted from bucket.',
+        );
+      }
+
+      // Luego eliminar la imagen del bucket
+      try {
+        await this.digitalOceanService.deleteFile(key);
+        this.logger.debug(`Successfully deleted image key ${key} from bucket`);
+      } catch (error) {
+        // Si falla la eliminación del bucket pero ya se eliminó de los productos,
+        // loguear el error pero no lanzar excepción para evitar inconsistencias
+        this.logger.error(
+          `Error deleting image key ${key} from bucket: ${error.message}. Image was already removed from products.`,
+          error.stack,
+        );
+        // No lanzar excepción aquí porque la imagen ya fue eliminada de los productos
+        // y no queremos dejar referencias rotas
+      }
     } catch (error) {
+      // Si el error ya fue manejado arriba, re-lanzarlo
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      // Para otros errores, lanzar BadRequestException genérica
       this.logger.error(`Error deleting image: ${error.message}`, error.stack);
       throw new BadRequestException('Failed to delete image');
     }

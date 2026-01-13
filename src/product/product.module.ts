@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from './product.entity';
 import { ProductImage } from './product-image.entity';
@@ -15,7 +15,7 @@ import { ImageModule } from '../image/image.module';
     TypeOrmModule.forFeature([Product, ProductImage]),
     UserModule,
     AuthModule,
-    ImageModule,
+    forwardRef(() => ImageModule),
   ],
   controllers: [ProductoController],
   providers: [ProductoService, AuthGuard, RolesGuard],

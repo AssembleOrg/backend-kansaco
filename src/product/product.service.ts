@@ -524,4 +524,89 @@ export class ProductoService {
       `Successfully reordered ${uniqueImageIds.length} images for product ${productId}`,
     );
   }
+
+  /**
+   * Elimina una imagen de todos los productos que la usan por su imageKey,
+   * reordena las imágenes restantes y actualiza el imageUrl de cada producto.
+   * Este método se llama cuando se elimina una imagen desde la galería.
+   */
+  async deleteImageByKeyAndReorder(imageKey: string): Promise<void> {
+    this.logger.debug(`Deleting image with key: ${imageKey} from all products`);
+
+    // Buscar todas las instancias de ProductImage con ese imageKey
+    const imagesToDelete = await this.productImageRepository.find({
+      where: { imageKey },
+    });
+
+    if (imagesToDelete.length === 0) {
+      this.logger.debug(`No products found using image key: ${imageKey}`);
+      return;
+    }
+
+    this.logger.debug(
+      `Found ${imagesToDelete.length} product image(s) using key: ${imageKey}`,
+    );
+
+    // Agrupar por productId usando un Map
+    const imagesByProduct = new Map<number, ProductImage[]>();
+    for (const image of imagesToDelete) {
+      const productId = image.productId;
+      if (!imagesByProduct.has(productId)) {
+        imagesByProduct.set(productId, []);
+      }
+      imagesByProduct.get(productId)!.push(image);
+    }
+
+    this.logger.debug(
+      `Image key ${imageKey} is used by ${imagesByProduct.size} product(s)`,
+    );
+
+    // Procesar cada producto afectado
+    for (const [productId, images] of imagesByProduct.entries()) {
+      try {
+        this.logger.debug(
+          `Processing product ${productId}: removing ${images.length} image(s) with key ${imageKey}`,
+        );
+
+        // Eliminar todas las imágenes con ese key del producto
+        await this.productImageRepository.remove(images);
+
+        // Obtener todas las imágenes restantes del producto ordenadas por order ASC
+        const remainingImages = await this.productImageRepository.find({
+          where: { productId },
+          order: { order: 'ASC', id: 'ASC' },
+        });
+
+        this.logger.debug(
+          `Product ${productId} has ${remainingImages.length} remaining image(s)`,
+        );
+
+        // Reordenar las imágenes restantes secuencialmente (0, 1, 2, ...)
+        for (let i = 0; i < remainingImages.length; i++) {
+          await this.productImageRepository.update(
+            { id: remainingImages[i].id },
+            { order: i },
+          );
+        }
+
+        // Actualizar el imageUrl del producto
+        // (updateProductImageUrl maneja el caso de que no haya imágenes, estableciendo imageUrl a null)
+        await this.updateProductImageUrl(productId);
+
+        this.logger.debug(
+          `Successfully removed image(s) from product ${productId} and reordered remaining images`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error processing product ${productId} for image key ${imageKey}: ${error.message}`,
+          error.stack,
+        );
+        // Continuar con el siguiente producto aunque falle uno
+      }
+    }
+
+    this.logger.debug(
+      `Completed deletion of image key ${imageKey} from all products`,
+    );
+  }
 }
