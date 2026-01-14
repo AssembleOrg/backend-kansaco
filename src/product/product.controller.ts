@@ -46,6 +46,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ImageService } from '../image/image.service';
 import { cleanImageKey } from '../helpers/image.helper';
+import { CategoryResponseDto } from '../category/dto/category-response.dto';
+import { DateTime } from 'luxon';
 
 @Controller('product')
 @ApiTags('Kansaco - Products')
@@ -64,8 +66,45 @@ export class ProductoController {
       imageKey: img.imageKey,
       order: img.order,
       isPrimary: img.isPrimary,
-      createdAt: formatDateISO(img.createdAt),
+      createdAt: formatDateISO(img.createdAt) || '',
     };
+  }
+
+  /**
+   * Helper para convertir Product a ProductResponse
+   * Incluye transformación de categorías relacionadas
+   */
+  private toProductResponse(product: any): ProductResponse {
+    // Extraer categorías antes de plainToInstance para evitar problemas con DateTime
+    const categories = product.categories;
+    
+    // Crear una copia del producto sin las categorías
+    // para evitar que plainToInstance intente transformar DateTime directamente
+    const productCopy = { ...product };
+    delete productCopy.categories;
+    
+    // También remover otras relaciones que puedan tener DateTime
+    delete productCopy.images; // Las imágenes se manejan por separado
+    delete productCopy.cartItems;
+    delete productCopy.discounts;
+    
+    // Transformar el producto base usando plainToInstance
+    // Esto solo transforma las propiedades simples, no las relaciones
+    const response = plainToInstance(ProductResponse, productCopy, {
+      excludeExtraneousValues: false,
+    });
+    
+    // Transformar categorías relacionadas manualmente si existen
+    if (categories && Array.isArray(categories)) {
+      response.categories = categories.map((cat: any) => ({
+        id: cat.id,
+        name: cat.name,
+        createdAt: formatDateISO(cat.createdAt) || '',
+        updatedAt: formatDateISO(cat.updatedAt) || '',
+      }));
+    }
+    
+    return response;
   }
   constructor(
     private readonly productoService: ProductoService,
@@ -150,9 +189,7 @@ export class ProductoController {
     
     return {
       ...result,
-      data: result.data.map((product) =>
-        plainToInstance(ProductResponse, product),
-      ),
+      data: result.data.map((product) => this.toProductResponse(product)),
     };
   }
 
@@ -211,7 +248,7 @@ export class ProductoController {
     });
     return filteredProducts.length > 0
       ? filteredProducts.map((product) =>
-          plainToInstance(ProductResponse, product),
+          this.toProductResponse(product),
         )
       : [];
   }
@@ -223,7 +260,7 @@ export class ProductoController {
   async getProduct(@Param('id') id: number): Promise<ProductResponse> {
     const product = await this.productoService.getProduct(id);
     const images = await this.productoService.getProductImages(id);
-    const response = plainToInstance(ProductResponse, product);
+    const response = this.toProductResponse(product);
     response.images = images.map((img) => this.toProductImageResponse(img));
     return response;
   }
@@ -238,7 +275,7 @@ export class ProductoController {
     @Body(ValidationPipe) body: ProductEdit,
   ): Promise<ProductResponse> {
     const product = await this.productoService.editProduct(id, body);
-    return plainToInstance(ProductResponse, product);
+    return this.toProductResponse(product);
   }
 
   @Post('/create')
@@ -250,7 +287,7 @@ export class ProductoController {
     @Body(ValidationPipe) body: ProductCreate,
   ): Promise<ProductResponse> {
     const product = await this.productoService.createProduct(body);
-    return plainToInstance(ProductResponse, product);
+    return this.toProductResponse(product);
   }
 
   @Delete('/:id')
@@ -260,7 +297,7 @@ export class ProductoController {
   @ApiOkResponse()
   async deleteProduct(@Param('id') id: number): Promise<ProductResponse> {
     const product = await this.productoService.deleteProduct(id);
-    return plainToInstance(ProductResponse, product);
+    return this.toProductResponse(product);
   }
 
   @Get('/file/listUpdatePrices')
@@ -319,7 +356,7 @@ export class ProductoController {
     }
     const products = await this.productoService.updatePrices(file);
     return products.map((product) => {
-      const response = plainToInstance(ProductResponse, product);
+      const response = this.toProductResponse(product);
       if (product.images) {
         response.images = product.images.map((img) => this.toProductImageResponse(img));
       }

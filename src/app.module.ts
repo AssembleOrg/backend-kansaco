@@ -16,6 +16,7 @@ import { EmailModule } from './email/email.module';
 import { OrderModule } from './order/order.module';
 import { ImageModule } from './image/image.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+import { CategoryModule } from './category/category.module';
 import { User } from './user/user.entity';
 import { Product } from './product/product.entity';
 import { ProductImage } from './product/product-image.entity';
@@ -24,6 +25,7 @@ import { CartItem } from './cart/cartItem.entity';
 import { AdminSetting } from './admin-settings/admin-setting.entity';
 import { Discount } from './discount/discount.entity';
 import { Order } from './order/order.entity';
+import { Category } from './category/category.entity';
 
 @Module({
   imports: [
@@ -50,6 +52,7 @@ import { Order } from './order/order.entity';
           AdminSetting,
           Discount,
           Order,
+          Category,
         ],
         synchronize: false,
       }),
@@ -64,6 +67,7 @@ import { Order } from './order/order.entity';
     OrderModule,
     ImageModule,
     RabbitmqModule,
+    CategoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

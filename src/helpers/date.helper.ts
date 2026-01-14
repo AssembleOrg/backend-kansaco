@@ -18,9 +18,14 @@ export function nowAsDate(): Date {
 
 /**
  * Format date to Spanish locale string
+ * Handles null/undefined values safely
  */
-export function formatDateSpanish(date: DateTime | Date): string {
+export function formatDateSpanish(date: DateTime | Date | null | undefined): string {
+  if (!date) return '';
+  
   const dt = date instanceof Date ? DateTime.fromJSDate(date).setZone(TIMEZONE) : date;
+  if (!dt || !dt.isValid) return '';
+  
   return dt.setLocale('es').toLocaleString({
     year: 'numeric',
     month: 'long',
@@ -30,9 +35,14 @@ export function formatDateSpanish(date: DateTime | Date): string {
 
 /**
  * Format date to ISO string
+ * Handles null/undefined values safely
  */
-export function formatDateISO(date: DateTime | Date): string {
+export function formatDateISO(date: DateTime | Date | null | undefined): string | null {
+  if (!date) return null;
+  
   const dt = date instanceof Date ? DateTime.fromJSDate(date).setZone(TIMEZONE) : date;
+  if (!dt || !dt.isValid) return null;
+  
   return dt.toISO();
 }
 

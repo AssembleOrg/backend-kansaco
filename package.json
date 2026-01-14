@@ -33,7 +33,9 @@
     "products:list-by-presentation": "ts-node -r tsconfig-paths/register scripts/list-products-by-presentation.ts",
     "dates:migrate-to-luxon": "ts-node -r tsconfig-paths/register scripts/migrate-dates-to-luxon-gmt3.ts",
     "products:delete-with-fix": "ts-node -r tsconfig-paths/register scripts/delete-products-with-fix.ts",
-    "images:fix-double-extensions": "ts-node -r tsconfig-paths/register scripts/fix-image-names-with-double-extensions.ts"
+    "images:fix-double-extensions": "ts-node -r tsconfig-paths/register scripts/fix-image-names-with-double-extensions.ts",
+    "images:check-broken": "ts-node -r tsconfig-paths/register scripts/check-broken-images.ts",
+    "images:fix-broken": "ts-node -r tsconfig-paths/register scripts/fix-broken-images.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.797.0",

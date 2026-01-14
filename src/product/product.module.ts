@@ -9,6 +9,7 @@ import { UserModule } from 'src/user/user.module';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { AuthModule } from 'src/auth/auth.module';
 import { ImageModule } from '../image/image.module';
+import { CategoryModule } from '../category/category.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ImageModule } from '../image/image.module';
     UserModule,
     AuthModule,
     forwardRef(() => ImageModule),
+    CategoryModule,
   ],
   controllers: [ProductoController],
   providers: [ProductoService, AuthGuard, RolesGuard],

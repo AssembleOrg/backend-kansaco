@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
-import { Product } from '../src/product/product.entity';
+import { Category } from '../src/category/category.entity';
 
 dotenv.config();
 
@@ -24,46 +24,29 @@ async function run() {
 
   await ds.initialize();
 
-  const productRepository = ds.getRepository(Product);
+  const categoryRepository = ds.getRepository(Category);
 
   try {
-    console.log('🔍 Fetching all products...');
+    console.log('🔍 Fetching all categories from database...');
 
-    // Obtener todos los productos con sus categorías
-    const products = await productRepository.find({
-      select: ['category'],
+    // Obtener todas las categorías de la tabla category
+    const categories = await categoryRepository.find({
+      order: { name: 'ASC' },
     });
 
-    console.log(`📦 Found ${products.length} products`);
+    console.log(`📦 Found ${categories.length} categories in database\n`);
 
-    // Extraer todas las categorías y eliminar duplicados
-    const allCategories = new Set<string>();
+    // Extraer solo los nombres
+    const categoryNames = categories.map((cat) => cat.name);
 
-    products.forEach((product) => {
-      if (product.category && Array.isArray(product.category)) {
-        product.category.forEach((cat) => {
-          if (cat && typeof cat === 'string' && cat.trim() !== '') {
-            // Normalizar: trim y capitalizar primera letra
-            const normalized = cat.trim();
-            allCategories.add(normalized);
-          }
-        });
-      }
-    });
-
-    // Convertir Set a Array y ordenar alfabéticamente
-    const uniqueCategories = Array.from(allCategories).sort();
-
-    console.log(`\n📋 Found ${uniqueCategories.length} unique categories:\n`);
-
-    // Mostrar en formato JSON como el usuario pidió
-    const jsonOutput = JSON.stringify(uniqueCategories, null, 2);
+    // Mostrar en formato JSON
+    const jsonOutput = JSON.stringify(categoryNames, null, 2);
     console.log(jsonOutput);
 
     // También mostrar en formato lista legible
     console.log('\n📝 Categories list:');
-    uniqueCategories.forEach((cat, index) => {
-      console.log(`   ${index + 1}. ${cat}`);
+    categoryNames.forEach((cat, index) => {
+      console.log(`   ${index + 1}. ${cat} (ID: ${categories[index].id})`);
     });
 
     // Guardar en un archivo JSON (opcional)

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 import { IsArray, IsBoolean, IsNumber, IsString } from 'class-validator';
 import { ProductImageResponse } from './product-image-response.dto';
+import { CategoryResponseDto } from '../../category/dto/category-response.dto';
 
 @ApiSchema({ name: 'ProductResponseDto' })
 export class ProductResponse {
@@ -19,11 +20,19 @@ export class ProductResponse {
   name: string;
 
   @ApiProperty({
-    description: 'Product Category',
-    type: String,
+    description: 'Product Category (legacy array of strings for compatibility)',
+    type: [String],
   })
   @IsArray()
   category: Array<string>;
+
+  @ApiProperty({
+    description: 'Product Categories (relation to Category entities)',
+    type: [CategoryResponseDto],
+    required: false,
+  })
+  @IsArray()
+  categories?: CategoryResponseDto[];
 
   @ApiProperty({
     description: 'Product Price',

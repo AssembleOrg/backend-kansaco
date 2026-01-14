@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './product.entity';
 import { ProductImage } from './product-image.entity';
@@ -13,6 +13,8 @@ import {
   toXml,
 } from 'src/helpers/product.helper';
 import { formatDateSpanish, now } from 'src/helpers/date.helper';
+import { CategoryService } from '../category/category.service';
+import { Category } from '../category/category.entity';
 
 export type ExportFormat = 'csv' | 'xml' | 'xlsx';
 
@@ -24,6 +26,8 @@ export class ProductoService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(ProductImage)
     private readonly productImageRepository: Repository<ProductImage>,
+    @Inject(forwardRef(() => CategoryService))
+    private readonly categoryService: CategoryService,
   ) {}
 
   private applyFilters(
@@ -45,9 +49,40 @@ export class ProductoService {
 
       if (key === 'category') {
         const categories = Array.isArray(value) ? value : [value];
-        qb.andWhere(`product.category && ARRAY[:...${paramName}]::text[]`, {
-          [paramName]: categories,
-        });
+        // Intentar usar la relación many-to-many primero
+        // Si las categorías son strings, buscar por nombre
+        // Si son números, usar directamente los IDs
+        const isNumeric = categories.every((cat) => !isNaN(Number(cat)));
+        
+        // Usar subquery para evitar múltiples joins
+        if (isNumeric) {
+          // Filtrar por IDs de categorías usando la relación
+          qb.andWhere(
+            `(product.id IN (
+              SELECT DISTINCT pc."productId" 
+              FROM product_category pc 
+              WHERE pc."categoryId" IN (:...categoryIds)
+            ) OR product.category && ARRAY[:...${paramName}]::text[])`,
+            {
+              categoryIds: categories.map((c) => Number(c)),
+              [paramName]: categories,
+            },
+          );
+        } else {
+          // Filtrar por nombres de categorías usando la relación
+          qb.andWhere(
+            `(product.id IN (
+              SELECT DISTINCT pc."productId" 
+              FROM product_category pc 
+              INNER JOIN category c ON pc."categoryId" = c.id 
+              WHERE LOWER(c.name) IN (:...categoryNames)
+            ) OR product.category && ARRAY[:...${paramName}]::text[])`,
+            {
+              categoryNames: categories.map((c) => String(c).toLowerCase()),
+              [paramName]: categories,
+            },
+          );
+        }
       } else if (key === 'stock' || key === 'isVisible' || key === 'isFeatured') {
         // Para campos numéricos y booleanos, usar igualdad exacta
         qb.andWhere(`product.${key} = :${paramName}`, {
@@ -81,6 +116,7 @@ export class ProductoService {
     if (filters && Object.keys(filters).length > 0) {
       const qb = this.productRepository
         .createQueryBuilder('product')
+        .leftJoinAndSelect('product.categories', 'categories')
         .orderBy('product.id', 'ASC');
 
       this.applyFilters(qb, filters);
@@ -105,6 +141,7 @@ export class ProductoService {
 
     // Sin filtros, usar método simple
     const [products, total] = await this.productRepository.findAndCount({
+      relations: ['categories'],
       order: {
         id: 'ASC',
       },
@@ -128,6 +165,7 @@ export class ProductoService {
   async getFilteredProducts(filters: Partial<Product>): Promise<Product[]> {
     const qb = this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.categories', 'categories')
       .orderBy('product.id', 'ASC');
 
     this.applyFilters(qb, filters);
@@ -140,7 +178,7 @@ export class ProductoService {
       where: {
         id,
       },
-      relations: ['images'],
+      relations: ['images', 'categories'],
     });
   }
 
@@ -148,6 +186,14 @@ export class ProductoService {
     const hasNameChange = body.name !== undefined;
 
     const finalBody = hasNameChange ? addSlug(body) : body;
+
+    // Resolver categorías si se proporcionan
+    let categories: Category[] | undefined;
+    if (body.category && Array.isArray(body.category)) {
+      categories = await this.resolveCategories(body.category);
+      // Remover category del body para evitar conflictos
+      delete finalBody.category;
+    }
 
     const product = await this.productRepository.preload({
       id,
@@ -158,11 +204,31 @@ export class ProductoService {
       throw new BadRequestException(`Product with id: ${id} not found`);
     }
 
+    // Asignar categorías si se resolvieron
+    if (categories !== undefined) {
+      product.categories = categories;
+    }
+
     return await this.productRepository.save(product);
   }
 
   async createProduct(body: Partial<Product>): Promise<Product> {
-    const product = this.productRepository.create(addSlug(body));
+    const bodyWithSlug = addSlug(body);
+    
+    // Resolver categorías si se proporcionan
+    let categories: Category[] | undefined;
+    if (body.category && Array.isArray(body.category)) {
+      categories = await this.resolveCategories(body.category);
+      // Remover category del body para evitar conflictos
+      delete bodyWithSlug.category;
+    }
+
+    const product = this.productRepository.create(bodyWithSlug);
+    
+    // Asignar categorías si se resolvieron
+    if (categories !== undefined) {
+      product.categories = categories;
+    }
 
     return await this.productRepository.save(product);
   }
@@ -608,5 +674,36 @@ export class ProductoService {
     this.logger.debug(
       `Completed deletion of image key ${imageKey} from all products`,
     );
+  }
+
+  /**
+   * Resuelve categorías desde un array de strings (nombres) o números (IDs)
+   * Si recibe strings, busca categorías existentes por nombre o las crea si no existen
+   * Si recibe números, busca categorías por ID
+   * Retorna array de entidades Category
+   */
+  private async resolveCategories(
+    categoryInput: string[] | number[],
+  ): Promise<Category[]> {
+    if (categoryInput.length === 0) {
+      return [];
+    }
+
+    // Verificar si son números (IDs) o strings (nombres)
+    const isNumeric = categoryInput.every(
+      (item) => typeof item === 'number' || !isNaN(Number(item)),
+    );
+
+    if (isNumeric) {
+      // Buscar por IDs
+      const ids = categoryInput.map((item) =>
+        typeof item === 'number' ? item : Number(item),
+      );
+      return await this.categoryService.findByIds(ids);
+    } else {
+      // Buscar o crear por nombres
+      const names = categoryInput.map((item) => String(item));
+      return await this.categoryService.findOrCreateByNames(names);
+    }
   }
 }

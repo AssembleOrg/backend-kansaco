@@ -46,7 +46,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Send the formatted response
     response.status(status).json({
       statusCode: status,
-      timestamp: formatDateISO(now()),
+      timestamp: formatDateISO(now()) || new Date().toISOString(),
       path: request.url,
       message,
     });

@@ -28,11 +28,11 @@ export class DateSerializeInterceptor implements NestInterceptor {
     }
 
     if (DateTime.isDateTime(data)) {
-      return formatDateISO(data);
+      return formatDateISO(data) || null;
     }
 
     if (data instanceof Date) {
-      return formatDateISO(DateTime.fromJSDate(data));
+      return formatDateISO(DateTime.fromJSDate(data)) || null;
     }
 
     if (Array.isArray(data)) {

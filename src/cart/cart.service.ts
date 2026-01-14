@@ -31,8 +31,8 @@ export class CartService {
   private toCartResponse(cart: Cart): CartResponse {
     return {
       id: cart.id,
-      createdAt: formatDateISO(cart.createdAt),
-      updatedAt: formatDateISO(cart.updatedAt),
+      createdAt: formatDateISO(cart.createdAt) || '',
+      updatedAt: formatDateISO(cart.updatedAt) || '',
       userId: cart.userId,
       items: (cart.items || []).map((item) => ({
         id: item.id,
