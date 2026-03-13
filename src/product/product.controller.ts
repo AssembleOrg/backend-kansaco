@@ -174,8 +174,10 @@ export class ProductoController {
   async getAllProducts(
     @Query(ValidationPipe) query: ProductGetPaginated,
   ): Promise<PaginatedResponse<ProductResponse>> {
-    const { page = 1, limit = 20, ...filters } = query;
-    
+    const { page: rawPage = 1, limit: rawLimit = 20, ...filters } = query;
+    const page = Math.max(1, Number(rawPage));
+    const limit = Math.min(Math.max(1, Number(rawLimit)), 100);
+
     // Limpiar filtros vacíos
     const cleanFilters = Object.fromEntries(
       Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null && value !== '')

@@ -94,8 +94,32 @@ export class ImageService {
       throw new BadRequestException('No files provided');
     }
 
-    const uploadPromises = files.map((file) => this.uploadImage(file, folder));
-    return Promise.all(uploadPromises);
+    // Upload in batches of 3 to avoid 429 rate limits from DigitalOcean
+    const batchSize = 3;
+    const results: ImageResponse[] = [];
+
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      const batchResults = await Promise.allSettled(
+        batch.map((file) => this.uploadImage(file, folder)),
+      );
+
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled') {
+          results.push(result.value);
+        } else {
+          this.logger.error(
+            `Failed to upload image in batch: ${result.reason?.message}`,
+          );
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      throw new BadRequestException('All image uploads failed');
+    }
+
+    return results;
   }
 
   async listImages(

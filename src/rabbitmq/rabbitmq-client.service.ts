@@ -8,6 +8,9 @@ export class RabbitmqClientService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RabbitmqClientService.name);
   private connection: any = null;
   private channel: any = null;
+  private reconnecting = false;
+  private readonly maxReconnectAttempts = 5;
+  private readonly reconnectDelayMs = 5000;
   private readonly exchangeName: string;
   private readonly queueName: string;
   private readonly rabbitmqUrl: string;
@@ -75,8 +78,10 @@ export class RabbitmqClientService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.connect();
     } catch (error) {
-      this.logger.error('Error al conectar con RabbitMQ:', error);
+      this.logger.error('Error al conectar con RabbitMQ al iniciar:', error.message);
       // No lanzamos el error para que la app pueda iniciar sin RabbitMQ
+      // Pero programamos reconexión automática
+      this.scheduleReconnect();
     }
   }
 
@@ -85,13 +90,38 @@ export class RabbitmqClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Conecta a RabbitMQ y configura exchange, cola y bindings
+   * Conecta a RabbitMQ y configura exchange, cola y bindings.
+   * Registra listeners para reconexión automática ante desconexiones.
    */
   private async connect() {
     try {
       this.connection = await amqp.connect(this.rabbitmqUrl);
+
+      // Listener: reconectar si la conexión se cierra inesperadamente
+      this.connection.on('close', (err: any) => {
+        if (err) {
+          this.logger.warn('Conexión RabbitMQ cerrada inesperadamente, intentando reconectar...');
+          this.connection = null;
+          this.channel = null;
+          this.scheduleReconnect();
+        }
+      });
+
+      this.connection.on('error', (err: any) => {
+        this.logger.error('Error en conexión RabbitMQ:', err.message);
+      });
+
       // Usar createConfirmChannel para tener confirmación de mensajes
       this.channel = await this.connection.createConfirmChannel();
+
+      this.channel.on('close', () => {
+        this.logger.warn('Canal RabbitMQ cerrado');
+        this.channel = null;
+      });
+
+      this.channel.on('error', (err: any) => {
+        this.logger.error('Error en canal RabbitMQ:', err.message);
+      });
 
       // Crear exchange
       await this.channel.assertExchange(this.exchangeName, 'direct', {
@@ -110,6 +140,7 @@ export class RabbitmqClientService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
+      this.reconnecting = false;
       this.logger.log(`Conectado a RabbitMQ. Exchange: ${this.exchangeName}, Cola: ${this.queueName}`);
     } catch (error) {
       this.logger.error('Error al conectar con RabbitMQ:', error);
@@ -117,6 +148,32 @@ export class RabbitmqClientService implements OnModuleInit, OnModuleDestroy {
       this.channel = null;
       throw error;
     }
+  }
+
+  /**
+   * Programa un intento de reconexión con backoff exponencial
+   */
+  private scheduleReconnect(attempt = 1) {
+    if (this.reconnecting || attempt > this.maxReconnectAttempts) {
+      if (attempt > this.maxReconnectAttempts) {
+        this.logger.error(`No se pudo reconectar a RabbitMQ después de ${this.maxReconnectAttempts} intentos`);
+      }
+      return;
+    }
+
+    this.reconnecting = true;
+    const delay = this.reconnectDelayMs * attempt;
+    this.logger.log(`Reconectando a RabbitMQ en ${delay / 1000}s (intento ${attempt}/${this.maxReconnectAttempts})...`);
+
+    setTimeout(async () => {
+      try {
+        await this.connect();
+        this.logger.log('Reconexión a RabbitMQ exitosa');
+      } catch (error) {
+        this.reconnecting = false;
+        this.scheduleReconnect(attempt + 1);
+      }
+    }, delay);
   }
 
   /**

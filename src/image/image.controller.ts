@@ -29,6 +29,7 @@ import { AuthGuard } from '../guards/auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { UserRole } from '../user/user.enum';
+import { Throttle } from '@nestjs/throttler';
 import {
   ImageResponse,
   PaginatedImageResponse,
@@ -45,6 +46,7 @@ export class ImageController {
   constructor(private readonly imageService: ImageService) {}
 
   @Post('upload')
+  @Throttle({ short: { ttl: 2000, limit: 3 }, medium: { ttl: 60000, limit: 20 } })
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(RolesGuard)
   @UseInterceptors(
@@ -82,6 +84,7 @@ export class ImageController {
   }
 
   @Post('upload-multiple')
+  @Throttle({ short: { ttl: 5000, limit: 2 }, medium: { ttl: 60000, limit: 10 } })
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(RolesGuard)
   @UseInterceptors(

@@ -28,7 +28,6 @@ export class CartItem {
 
   @ManyToOne(() => Product, (product) => product.cartItems, {
     onDelete: 'RESTRICT',
-    eager: true,
   })
   @JoinColumn({ name: 'productId', referencedColumnName: 'id' })
   product: Product;

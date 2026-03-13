@@ -574,13 +574,12 @@ export class ProductoService {
       );
     }
 
-    // Actualizar el orden
-    for (let i = 0; i < uniqueImageIds.length; i++) {
-      await this.productImageRepository.update(
-        { id: uniqueImageIds[i] },
-        { order: i },
-      );
-    }
+    // Actualizar el orden en paralelo
+    await Promise.all(
+      uniqueImageIds.map((id, i) =>
+        this.productImageRepository.update({ id }, { order: i }),
+      ),
+    );
 
     // Actualizar el imageUrl del producto después de reordenar
     // (por si la primera imagen cambió o si no hay imagen principal)
@@ -647,13 +646,12 @@ export class ProductoService {
           `Product ${productId} has ${remainingImages.length} remaining image(s)`,
         );
 
-        // Reordenar las imágenes restantes secuencialmente (0, 1, 2, ...)
-        for (let i = 0; i < remainingImages.length; i++) {
-          await this.productImageRepository.update(
-            { id: remainingImages[i].id },
-            { order: i },
-          );
-        }
+        // Reordenar las imágenes restantes en paralelo (0, 1, 2, ...)
+        await Promise.all(
+          remainingImages.map((img, i) =>
+            this.productImageRepository.update({ id: img.id }, { order: i }),
+          ),
+        );
 
         // Actualizar el imageUrl del producto
         // (updateProductImageUrl maneja el caso de que no haya imágenes, estableciendo imageUrl a null)

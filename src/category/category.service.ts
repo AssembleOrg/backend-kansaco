@@ -138,23 +138,32 @@ export class CategoryService {
    * Útil para migración y creación de productos.
    */
   async findOrCreateByNames(names: string[]): Promise<Category[]> {
-    const categories: Category[] = [];
     const uniqueNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
 
-    for (const name of uniqueNames) {
-      let category = await this.findByName(name);
-
-      if (!category) {
-        // Crear la categoría si no existe
-        category = this.categoryRepository.create({ name });
-        category = await this.categoryRepository.save(category);
-        this.logger.debug(`Auto-created category: ${name} (ID: ${category.id})`);
-      }
-
-      categories.push(category);
+    if (uniqueNames.length === 0) {
+      return [];
     }
 
-    return categories;
+    // Batch lookup: buscar todas las existentes en una sola query
+    const existing = await this.categoryRepository
+      .createQueryBuilder('category')
+      .where('category.name IN (:...names)', { names: uniqueNames })
+      .getMany();
+
+    const existingMap = new Map(existing.map((c) => [c.name, c]));
+
+    // Crear solo las que no existen
+    const toCreate = uniqueNames.filter((name) => !existingMap.has(name));
+
+    for (const name of toCreate) {
+      const category = this.categoryRepository.create({ name });
+      const saved = await this.categoryRepository.save(category);
+      this.logger.debug(`Auto-created category: ${name} (ID: ${saved.id})`);
+      existingMap.set(name, saved);
+    }
+
+    // Retornar en el orden original
+    return uniqueNames.map((name) => existingMap.get(name)!);
   }
 
   private toResponseDto(category: Category): CategoryResponseDto {

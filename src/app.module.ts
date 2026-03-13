@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ProductoModule } from './product/product.module';
 import { UserModule } from './user/user.module';
 import { CartModule } from './cart/cart.module';
@@ -37,11 +39,15 @@ import { Category } from './category/category.entity';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get<string>('postgres.host'),
-        port: configService.get<number>('postgres.port'),
-        username: configService.get<string>('postgres.username'),
-        password: configService.get<string>('postgres.password'),
-        database: configService.get<string>('postgres.database'),
+        ...(configService.get<string>('postgres.url')
+          ? { url: configService.get<string>('postgres.url') }
+          : {
+              host: configService.get<string>('postgres.host'),
+              port: configService.get<number>('postgres.port'),
+              username: configService.get<string>('postgres.username'),
+              password: configService.get<string>('postgres.password'),
+              database: configService.get<string>('postgres.database'),
+            }),
         entities: [
           // Importar entidades directamente para evitar problemas con paths
           User,
@@ -58,6 +64,18 @@ import { Category } from './category/category.entity';
       }),
       inject: [ConfigService],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,   // 1 second window
+        limit: 10,   // max 10 requests per second
+      },
+      {
+        name: 'medium',
+        ttl: 10000,  // 10 second window
+        limit: 50,   // max 50 requests per 10 seconds
+      },
+    ]),
     AuthModule,
     ProductoModule,
     UserModule,
@@ -70,7 +88,13 @@ import { Category } from './category/category.entity';
     CategoryModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {
   constructor(private readonly configService: ConfigService) {}

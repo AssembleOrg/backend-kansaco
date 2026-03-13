@@ -46,8 +46,8 @@ export class AdminSettingsService {
       const newSetting = new AdminSetting();
       newSetting.minimumOrderAmount = minimumOrderAmount;
       await this.adminSettingRepository.save(newSetting);
-      this.clearMinimumOrderAmountCache();
     }
+    this.clearMinimumOrderAmountCache();
   }
 
   async getSellerEmail(): Promise<string> {
@@ -57,7 +57,7 @@ export class AdminSettingsService {
       throw new NotFoundException('No settings found');
     }
 
-    return settings[length - 1].sellerEmail;
+    return settings[settings.length - 1].sellerEmail;
   }
 
   async setSellerEmail(sellerEmail: string, id: number): Promise<void> {
@@ -81,7 +81,7 @@ export class AdminSettingsService {
       throw new NotFoundException('No settings found');
     }
 
-    return settings[length - 1].infoEmail;
+    return settings[settings.length - 1].infoEmail;
   }
 
   async setInfoEmail(infoEmail: string, id: number): Promise<void> {

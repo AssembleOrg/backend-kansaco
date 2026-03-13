@@ -14,8 +14,9 @@ import rateLimit from 'express-rate-limit';
 import * as hpp from 'hpp';
 
 async function bootstrap() {
+  const isProduction = process.env.NODE_ENV === 'production';
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: isProduction ? ['error', 'warn', 'log'] : ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
   const globalPrefix = 'api';
@@ -31,9 +32,14 @@ async function bootstrap() {
   );
 
   // Enable CORS with proper configuration (after Helmet to ensure headers are set)
-  // Only allow requests from the production frontend
+  const configService = app.get(ConfigService);
+  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS', 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: 'https://frontend-kansaco-production.up.railway.app',
+    origin: allowedOrigins,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
@@ -86,7 +92,6 @@ async function bootstrap() {
   });
 
   // Conectar a RabbitMQ como microservicio
-  const configService = app.get(ConfigService);
   const rabbitmqUrl = configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672');
   const rabbitmqQueue = configService.get<string>('RABBITMQ_QUEUE', 'kansaco-queue');
 
@@ -110,8 +115,8 @@ async function bootstrap() {
     await app.startAllMicroservices();
     console.log(`📨 RabbitMQ microservice connected to queue: ${rabbitmqQueue}`);
   } catch (error) {
-    console.error('⚠️  Error connecting to RabbitMQ:', error.message);
-    console.log('⚠️  Continuing without RabbitMQ microservice...');
+    console.error(`⚠️  Error connecting RabbitMQ microservice: ${error.message}`);
+    console.log('⚠️  Continuing without RabbitMQ microservice. RabbitmqClientService will retry automatically.');
   }
 
   const port = configService.get<string>('server.port') || 3001;
