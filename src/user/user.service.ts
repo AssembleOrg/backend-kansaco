@@ -1,9 +1,11 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
@@ -15,6 +17,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { nowAsDate } from 'src/helpers/date.helper';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class UserService {
@@ -26,6 +29,8 @@ export class UserService {
     @InjectRepository(Cart)
     private readonly cartService: Repository<Cart>,
     private readonly authService: AuthService,
+    @Inject(forwardRef(() => AnalyticsService))
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -159,6 +164,12 @@ export class UserService {
     }
 
     this.logger.log(`Login successful for user: ${user.email}`);
+
+    // Track login event (fire & forget)
+    this.analyticsService.trackEvent(user.id, 'login', {
+      email: user.email,
+      rol: user.rol,
+    });
 
     const token = await this.authService.generateToken({
       id: user.id,
