@@ -191,8 +191,8 @@ export class ProductoService {
     let categories: Category[] | undefined;
     if (body.category && Array.isArray(body.category)) {
       categories = await this.resolveCategories(body.category);
-      // Remover category del body para evitar conflictos
-      delete finalBody.category;
+      // Mantener category con los nombres para satisfacer la columna not-null
+      finalBody.category = body.category;
     }
 
     const product = await this.productRepository.preload({
@@ -219,8 +219,8 @@ export class ProductoService {
     let categories: Category[] | undefined;
     if (body.category && Array.isArray(body.category)) {
       categories = await this.resolveCategories(body.category);
-      // Remover category del body para evitar conflictos
-      delete bodyWithSlug.category;
+      // Mantener category con los nombres para satisfacer la columna not-null
+      bodyWithSlug.category = body.category;
     }
 
     const product = this.productRepository.create(bodyWithSlug);

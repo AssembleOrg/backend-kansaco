@@ -10,6 +10,7 @@ import { RolesGuard } from 'src/guards/roles.guard';
 import { AuthModule } from 'src/auth/auth.module';
 import { ImageModule } from '../image/image.module';
 import { CategoryModule } from '../category/category.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CategoryModule } from '../category/category.module';
     AuthModule,
     forwardRef(() => ImageModule),
     CategoryModule,
+    AnalyticsModule,
   ],
   controllers: [ProductoController],
   providers: [ProductoService, AuthGuard, RolesGuard],

@@ -48,6 +48,7 @@ import { ImageService } from '../image/image.service';
 import { cleanImageKey } from '../helpers/image.helper';
 import { CategoryResponseDto } from '../category/dto/category-response.dto';
 import { DateTime } from 'luxon';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Controller('product')
 @ApiTags('Kansaco - Products')
@@ -109,6 +110,7 @@ export class ProductoController {
   constructor(
     private readonly productoService: ProductoService,
     private readonly imageService: ImageService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   @Get()
@@ -188,7 +190,16 @@ export class ProductoController {
       limit,
       Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined,
     );
-    
+
+    // Track search events (fire & forget)
+    if (cleanFilters.name || cleanFilters.sku || cleanFilters.slug) {
+      this.analyticsService.trackEvent(null, 'search', {
+        query: cleanFilters.name || cleanFilters.sku || cleanFilters.slug,
+        filters: cleanFilters,
+        resultsCount: result.total,
+      });
+    }
+
     return {
       ...result,
       data: result.data.map((product) => this.toProductResponse(product)),
