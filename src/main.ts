@@ -22,6 +22,19 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
 
+  // Si estás detrás de un proxy (nginx / ingress / load balancer), Express debe "confiar"
+  // en los headers `X-Forwarded-*` para que middlewares como express-rate-limit identifiquen bien la IP.
+  const configService = app.get(ConfigService);
+  const trustProxyRaw = configService.get<string>(
+    'TRUST_PROXY',
+    isProduction ? '1' : '0',
+  );
+  const trustProxy =
+    trustProxyRaw === 'true' || trustProxyRaw === '1' || trustProxyRaw === 'yes';
+  if (trustProxy) {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
+
   // 1. Helmet: cabeceras HTTP seguras (configured to work with CORS)
   app.use(
     helmet({
@@ -32,7 +45,6 @@ async function bootstrap() {
   );
 
   // Enable CORS with proper configuration (after Helmet to ensure headers are set)
-  const configService = app.get(ConfigService);
   const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS', 'http://localhost:3000')
     .split(',')
     .map((o) => o.trim())

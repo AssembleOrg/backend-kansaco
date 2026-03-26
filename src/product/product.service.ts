@@ -247,32 +247,43 @@ export class ProductoService {
 
   async deleteProduct(id: number): Promise<Product> {
     const product = await this.productRepository.findOne({
-      where: {
-        id,
-      },
-      relations: ['categories', 'images', 'cartItems', 'discounts'],
+      where: { id },
     });
 
     if (!product) {
       throw new BadRequestException(`Product with id: ${id} not found`);
     }
 
-    // Limpiar relaciones many-to-many antes de eliminar
-    product.categories = [];
-    product.discounts = [];
-    await this.productRepository.save(product);
+    const manager = this.productRepository.manager;
+
+    // Limpiar relación many-to-many con categorías (tabla intermedia)
+    await manager
+      .createQueryBuilder()
+      .delete()
+      .from('product_category')
+      .where('"productId" = :id', { id })
+      .execute();
 
     // Eliminar cartItems que referencian este producto (onDelete: RESTRICT)
-    if (product.cartItems && product.cartItems.length > 0) {
-      await this.productRepository.manager.remove(product.cartItems);
-    }
+    await manager
+      .createQueryBuilder()
+      .delete()
+      .from('cart_item')
+      .where('"productId" = :id', { id })
+      .execute();
 
     // Eliminar imágenes asociadas
-    if (product.images && product.images.length > 0) {
-      await this.productImageRepository.remove(product.images);
-    }
+    await manager
+      .createQueryBuilder()
+      .delete()
+      .from('product_image')
+      .where('"productId" = :id', { id })
+      .execute();
 
-    return await this.productRepository.remove(product);
+    // Evitar `remove()` porque puede disparar el loader interno de relations/cascades
+    // y fallar si alguna metadata/relación no está completamente registrada.
+    await this.productRepository.delete({ id });
+    return product;
   }
 
   async getListProductsToUpdatePrices(formatOutput: string): Promise<{
