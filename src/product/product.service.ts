@@ -250,16 +250,27 @@ export class ProductoService {
       where: {
         id,
       },
-      relations: ['categories', 'images'],
+      relations: ['categories', 'images', 'cartItems', 'discounts'],
     });
 
     if (!product) {
       throw new BadRequestException(`Product with id: ${id} not found`);
     }
 
-    // Limpiar relación many-to-many con categorías antes de eliminar
+    // Limpiar relaciones many-to-many antes de eliminar
     product.categories = [];
+    product.discounts = [];
     await this.productRepository.save(product);
+
+    // Eliminar cartItems que referencian este producto (onDelete: RESTRICT)
+    if (product.cartItems && product.cartItems.length > 0) {
+      await this.productRepository.manager.remove(product.cartItems);
+    }
+
+    // Eliminar imágenes asociadas
+    if (product.images && product.images.length > 0) {
+      await this.productImageRepository.remove(product.images);
+    }
 
     return await this.productRepository.remove(product);
   }
