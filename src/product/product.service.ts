@@ -209,7 +209,13 @@ export class ProductoService {
       product.categories = categories;
     }
 
-    return await this.productRepository.save(product);
+    const saved = await this.productRepository.save(product);
+
+    // Recargar con relaciones para que la response incluya categories
+    return await this.productRepository.findOne({
+      where: { id: saved.id },
+      relations: ['categories'],
+    });
   }
 
   async createProduct(body: Partial<Product>): Promise<Product> {
@@ -230,7 +236,13 @@ export class ProductoService {
       product.categories = categories;
     }
 
-    return await this.productRepository.save(product);
+    const saved = await this.productRepository.save(product);
+
+    // Recargar con relaciones para que la response incluya categories
+    return await this.productRepository.findOne({
+      where: { id: saved.id },
+      relations: ['categories'],
+    });
   }
 
   async deleteProduct(id: number): Promise<Product> {
@@ -238,11 +250,16 @@ export class ProductoService {
       where: {
         id,
       },
+      relations: ['categories', 'images'],
     });
 
     if (!product) {
       throw new BadRequestException(`Product with id: ${id} not found`);
     }
+
+    // Limpiar relación many-to-many con categorías antes de eliminar
+    product.categories = [];
+    await this.productRepository.save(product);
 
     return await this.productRepository.remove(product);
   }
@@ -574,15 +591,15 @@ export class ProductoService {
       );
     }
 
-    // Actualizar el orden en paralelo
+    // Actualizar el orden y isPrimary en paralelo
+    // La primera imagen (order 0) es la principal
     await Promise.all(
       uniqueImageIds.map((id, i) =>
-        this.productImageRepository.update({ id }, { order: i }),
+        this.productImageRepository.update({ id }, { order: i, isPrimary: i === 0 }),
       ),
     );
 
     // Actualizar el imageUrl del producto después de reordenar
-    // (por si la primera imagen cambió o si no hay imagen principal)
     await this.updateProductImageUrl(productId);
 
     this.logger.debug(

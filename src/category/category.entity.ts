@@ -2,7 +2,6 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinTable,
   ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -37,10 +36,5 @@ export class Category {
   updatedAt: DateTime;
 
   @ManyToMany(() => Product, (product) => product.categories)
-  @JoinTable({
-    name: 'product_category',
-    joinColumn: { name: 'categoryId', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'productId', referencedColumnName: 'id' },
-  })
   products: Product[];
 }

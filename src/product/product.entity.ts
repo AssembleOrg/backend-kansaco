@@ -2,6 +2,7 @@ import { CartItem } from '../cart/cartItem.entity';
 import {
   Column,
   Entity,
+  JoinTable,
   ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -118,5 +119,10 @@ export class Product {
   images: ProductImage[];
 
   @ManyToMany(() => Category, (category) => category.products)
+  @JoinTable({
+    name: 'product_category',
+    joinColumn: { name: 'productId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'categoryId', referencedColumnName: 'id' },
+  })
   categories: Category[];
 }
