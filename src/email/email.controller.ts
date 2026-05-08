@@ -63,20 +63,23 @@ export class EmailController {
     
     // Construir los items del pedido desde el carrito, incluyendo presentaciones
     // Si el frontend envió items, los usamos pero completamos las presentaciones desde el carrito
-    const items: OrderItemDto[] = cart.items.map((cartItem) => {
-      // Buscar si el frontend envió este item (por productId)
-      const frontendItem = partialOrderData.items?.find(
-        (item) => item.productId === cartItem.productId,
-      );
-      
-      return {
-        productId: cartItem.productId,
-        productName: frontendItem?.productName || cartItem.product?.name || 'Producto sin nombre',
-        quantity: frontendItem?.quantity || cartItem.quantity,
-        unitPrice: frontendItem?.unitPrice || cartItem.product?.price || undefined,
-        presentation: cartItem.presentation || undefined, // Siempre usar presentación del carrito
-      };
-    });
+    // Filtramos items con quantity <= 0 (filas zombie por bug histórico de deleteItemFromCart)
+    const items: OrderItemDto[] = cart.items
+      .filter((cartItem) => cartItem.quantity > 0)
+      .map((cartItem) => {
+        // Buscar si el frontend envió este item (por productId)
+        const frontendItem = partialOrderData.items?.find(
+          (item) => item.productId === cartItem.productId,
+        );
+
+        return {
+          productId: cartItem.productId,
+          productName: frontendItem?.productName || cartItem.product?.name || 'Producto sin nombre',
+          quantity: frontendItem?.quantity || cartItem.quantity,
+          unitPrice: frontendItem?.unitPrice || cartItem.product?.price || undefined,
+          presentation: cartItem.presentation || undefined, // Siempre usar presentación del carrito
+        };
+      });
 
     // Si el frontend no envió items, usar los del carrito. Si envió items, usar los del carrito con presentaciones
     const orderData: SendOrderEmailDto = {

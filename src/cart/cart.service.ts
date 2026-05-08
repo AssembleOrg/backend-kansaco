@@ -205,22 +205,25 @@ export class CartService {
       throw new NotFoundException(`Cart ${cartId} not found`);
     }
 
-    // 2) Try to decrement an existing row
-    const updateResult = await this.cartItemRepository
-      .createQueryBuilder()
-      .update(CartItem)
-      .set({ quantity: () => `"quantity" - ${quantity}` })
-      .where('cartId = :cartId AND productId = :productId', {
-        cartId,
-        productId,
-      })
-      .execute();
-
-    if (updateResult.affected === 0) {
-      // 3) No existing item → throw an error
+    // 2) Find the existing row (a cart can have multiple rows for the same
+    // product if presentations differ, but the legacy delete signature only
+    // takes productId — we operate on the first match, matching prior behavior).
+    const existing = await this.cartItemRepository.findOne({
+      where: { cartId, productId },
+    });
+    if (!existing) {
       throw new BadRequestException(
         `Cart ${cartId} does not contain item ${productId}`,
       );
+    }
+
+    // 3) Delete row entirely if removing all (or more) units; otherwise decrement.
+    // This prevents zombie rows with quantity = 0 (or negative) from accumulating.
+    if (quantity >= existing.quantity) {
+      await this.cartItemRepository.delete({ id: existing.id });
+    } else {
+      existing.quantity -= quantity;
+      await this.cartItemRepository.save(existing);
     }
 
     // 4) Return the cart *with* its items populated
