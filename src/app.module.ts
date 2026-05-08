@@ -20,6 +20,11 @@ import { ImageModule } from './image/image.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { CategoryModule } from './category/category.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { LeadModule } from './lead/lead.module';
+import { VendorModule } from './vendor/vendor.module';
+import { PipelineStageModule } from './pipeline-stage/pipeline-stage.module';
+import { DealModule } from './deal/deal.module';
+import { QuoteModule } from './quote/quote.module';
 import { User } from './user/user.entity';
 import { Product } from './product/product.entity';
 import { ProductImage } from './product/product-image.entity';
@@ -30,6 +35,15 @@ import { Discount } from './discount/discount.entity';
 import { Order } from './order/order.entity';
 import { Category } from './category/category.entity';
 import { UserEvent } from './analytics/user-event.entity';
+import { Lead } from './lead/lead.entity';
+import { Vendor } from './vendor/vendor.entity';
+import { PipelineStage } from './pipeline-stage/pipeline-stage.entity';
+import { TerminalReason } from './pipeline-stage/terminal-reason.entity';
+import { Deal } from './deal/deal.entity';
+import { DealStageHistory } from './deal/deal-stage-history.entity';
+import { DealNote } from './deal/deal-note.entity';
+import { Quote } from './quote/quote.entity';
+import { QuoteItem } from './quote/quote-item.entity';
 
 @Module({
   imports: [
@@ -62,6 +76,15 @@ import { UserEvent } from './analytics/user-event.entity';
           Order,
           Category,
           UserEvent,
+          Lead,
+          Vendor,
+          PipelineStage,
+          TerminalReason,
+          Deal,
+          DealStageHistory,
+          DealNote,
+          Quote,
+          QuoteItem,
         ],
         synchronize: false,
       }),
@@ -90,6 +113,11 @@ import { UserEvent } from './analytics/user-event.entity';
     RabbitmqModule,
     CategoryModule,
     AnalyticsModule,
+    LeadModule,
+    VendorModule,
+    PipelineStageModule,
+    DealModule,
+    QuoteModule,
   ],
   controllers: [AppController],
   providers: [

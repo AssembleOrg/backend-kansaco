@@ -86,23 +86,14 @@ export class PdfService {
   }
 
   /**
-   * Genera un PDF de presupuesto usando Puppeteer + Handlebars
+   * Genera un PDF de presupuesto desde un PresupuestoData ya armado.
+   * Usar este método cuando se cuenta con la data en formato canónico
+   * (por ejemplo desde el módulo CRM/Quote).
    */
-  async generatePresupuestoPdf(
-    orderData: SendOrderEmailDto,
-    presupuestoNumber: string,
-  ): Promise<Buffer> {
+  async renderPresupuesto(data: PresupuestoData): Promise<Buffer> {
     try {
-      // Convertir SendOrderEmailDto a PresupuestoData
-      const presupuestoData = await this.convertToPresupuestoData(
-        orderData,
-        presupuestoNumber,
-      );
+      const html = this.template(data);
 
-      // Compilar HTML con Handlebars
-      const html = this.template(presupuestoData);
-
-      // Generar PDF con Puppeteer
       const launchOptions: any = {
         headless: true,
         args: [
@@ -157,11 +148,45 @@ export class PdfService {
 
       await browser.close();
 
-      this.logger.log(`PDF generado exitosamente: ${presupuestoNumber}`);
+      this.logger.log(`PDF generado: ${data.presupuesto.numero}`);
       return Buffer.from(pdf);
     } catch (error: any) {
       this.logger.error(`Error generando PDF: ${error.message}`, error.stack);
       throw error;
+    }
+  }
+
+  /**
+   * Genera un PDF de presupuesto desde una orden (path original).
+   * Convierte la orden a PresupuestoData y delega en renderPresupuesto.
+   */
+  async generatePresupuestoPdf(
+    orderData: SendOrderEmailDto,
+    presupuestoNumber: string,
+  ): Promise<Buffer> {
+    const presupuestoData = await this.convertToPresupuestoData(
+      orderData,
+      presupuestoNumber,
+    );
+    return this.renderPresupuesto(presupuestoData);
+  }
+
+  /**
+   * Carga el logo de Kansaco como data URL base64. Útil para construir
+   * PresupuestoData desde otros módulos sin duplicar la lógica.
+   */
+  async loadEmpresaLogoBase64(): Promise<string> {
+    const logoPath = path.join(process.cwd(), 'public', 'LogKan.webp');
+    try {
+      if (!fs.existsSync(logoPath)) {
+        this.logger.warn(`Logo no encontrado en: ${logoPath}`);
+        return '';
+      }
+      const pngBuffer = await sharp(logoPath).png().toBuffer();
+      return `data:image/png;base64,${pngBuffer.toString('base64')}`;
+    } catch (e: any) {
+      this.logger.warn(`Error cargando logo: ${e.message}`);
+      return '';
     }
   }
 

@@ -1,0 +1,6 @@
+export enum QuoteEstado {
+  BORRADOR = 'BORRADOR',
+  ENVIADO = 'ENVIADO',
+  ACEPTADO = 'ACEPTADO',
+  RECHAZADO = 'RECHAZADO',
+}
