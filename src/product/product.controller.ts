@@ -580,34 +580,58 @@ export class ProductoController {
       );
     }
 
-    // Solo eliminar del bucket si se solicita explícitamente
-    // Por defecto, NO se elimina del bucket para evitar pérdidas accidentales
-    const shouldDeleteFromBucket = deleteFromBucket === 'true' || deleteFromBucket === '1';
-    
-    if (shouldDeleteFromBucket) {
-      try {
-        await this.imageService.deleteImage(image.imageKey);
-        this.logger.log(
-          `Image ${image.imageKey} deleted from bucket for product ${productId}`,
-        );
-      } catch (error) {
-        this.logger.warn(
-          `Failed to delete image from bucket: ${error.message}`,
-        );
-      }
-    } else {
-      this.logger.log(
-        `Image ${imageId} removed from product ${productId} (not deleted from bucket). Use ?deleteFromBucket=true to delete from bucket.`,
-      );
-    }
+    const shouldDeleteFromBucket =
+      deleteFromBucket === 'true' || deleteFromBucket === '1';
 
-    // Eliminar de la base de datos (siempre)
+    // 1) Borrar SIEMPRE solo el registro ProductImage de este producto.
+    //    Importante: no llamar a imageService.deleteImage() acá porque ese
+    //    método dispara un cascade que borra el mismo imageKey de TODOS
+    //    los productos que lo compartan. Eso explicaba la pérdida de
+    //    imágenes en productos no relacionados al editar uno solo.
     await this.productoService.deleteProductImage(imageId);
 
-    return { 
-      message: shouldDeleteFromBucket 
-        ? 'Image deleted successfully from database and bucket' 
-        : 'Image removed from product (still in bucket). Use ?deleteFromBucket=true to delete from bucket.',
+    // 2) Si el cliente pidió borrar del bucket, recién ahora chequeamos
+    //    si el archivo sigue siendo usado por OTROS productos. Si nadie
+    //    más lo referencia, borramos el archivo del bucket directamente
+    //    (sin pasar por el método con cascade).
+    if (shouldDeleteFromBucket) {
+      const remainingRefs =
+        await this.productoService.countImageReferencesByKey(image.imageKey);
+
+      if (remainingRefs > 0) {
+        this.logger.log(
+          `Image ${image.imageKey} still referenced by ${remainingRefs} other product image(s); file kept in bucket.`,
+        );
+        return {
+          message: `Image removed from product. File kept in bucket because ${remainingRefs} other product image(s) still reference it.`,
+        };
+      }
+
+      try {
+        await this.imageService.deleteFromBucketOnly(image.imageKey);
+        this.logger.log(
+          `Image ${image.imageKey} deleted from bucket (no remaining references) for product ${productId}`,
+        );
+        return {
+          message: 'Image deleted successfully from product and bucket',
+        };
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete image from bucket: ${error.message}. DB association already removed.`,
+        );
+        return {
+          message:
+            'Image removed from product but bucket deletion failed. Check logs.',
+        };
+      }
+    }
+
+    this.logger.log(
+      `Image ${imageId} removed from product ${productId} (file kept in bucket). Use ?deleteFromBucket=true to also delete the file.`,
+    );
+    return {
+      message:
+        'Image removed from product (still in bucket). Use ?deleteFromBucket=true to delete from bucket.',
     };
   }
 

@@ -10,9 +10,13 @@ import {
   UploadedFile,
   UploadedFiles,
   BadRequestException,
+  ConflictException,
   Logger,
   ValidationPipe,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
+import { ProductoService } from '../product/product.service';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -43,7 +47,11 @@ import { ListImagesQueryDto } from './dto/list-images-query.dto';
 export class ImageController {
   private readonly logger = new Logger(ImageController.name);
 
-  constructor(private readonly imageService: ImageService) {}
+  constructor(
+    private readonly imageService: ImageService,
+    @Inject(forwardRef(() => ProductoService))
+    private readonly productoService: ProductoService,
+  ) {}
 
   @Post('upload')
   @Throttle({ short: { ttl: 2000, limit: 3 }, medium: { ttl: 60000, limit: 20 } })
@@ -172,10 +180,43 @@ export class ImageController {
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(RolesGuard)
   @ApiOkResponse()
-  @ApiOperation({ summary: 'Delete an image by key' })
-  async deleteImage(@Param('key') key: string): Promise<{ message: string }> {
+  @ApiQuery({
+    name: 'force',
+    type: Boolean,
+    required: false,
+    description:
+      'If true, deletes the image from the bucket even if it is still referenced by one or more products. All references will be removed (cascade). Default: false.',
+  })
+  @ApiOperation({
+    summary: 'Delete an image by key',
+    description:
+      'By default, if the image is still referenced by any product, this endpoint returns 409 Conflict listing the affected product IDs. Pass ?force=true to override and cascade the deletion across all referencing products.',
+  })
+  async deleteImage(
+    @Param('key') key: string,
+    @Query('force') force?: string,
+  ): Promise<{ message: string }> {
+    const isForced = force === 'true' || force === '1';
+
+    if (!isForced) {
+      const productIds =
+        await this.productoService.getProductIdsUsingImageKey(key);
+      if (productIds.length > 0) {
+        throw new ConflictException({
+          message:
+            'Image is in use by one or more products. Pass ?force=true to delete anyway (this will remove the image from those products too).',
+          imageKey: key,
+          inUseByProductIds: productIds,
+        });
+      }
+    }
+
     await this.imageService.deleteImage(key);
-    return { message: 'Image deleted successfully' };
+    return {
+      message: isForced
+        ? 'Image deleted (forced). References in products were also removed.'
+        : 'Image deleted successfully',
+    };
   }
 }
 

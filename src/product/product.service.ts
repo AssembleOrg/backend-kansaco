@@ -514,8 +514,60 @@ export class ProductoService {
     const productId = image.productId;
     await this.productImageRepository.remove(image);
 
-    // Actualizar el imageUrl del producto después de eliminar la imagen
+    // Re-numerar las imágenes restantes a 0..N y marcar la primera como
+    // principal. Esto evita huecos en `order` y que el producto quede sin
+    // ninguna imagen con isPrimary=true después de borrar la principal.
+    const remainingImages = await this.productImageRepository.find({
+      where: { productId },
+      order: { order: 'ASC', id: 'ASC' },
+    });
+
+    await Promise.all(
+      remainingImages.map((img, i) =>
+        this.productImageRepository.update(
+          { id: img.id },
+          { order: i, isPrimary: i === 0 },
+        ),
+      ),
+    );
+
+    // Actualizar el imageUrl del producto basándose en la nueva imagen principal
     await this.updateProductImageUrl(productId);
+  }
+
+  /**
+   * Cuenta cuántos registros ProductImage referencian un mismo imageKey.
+   * Si se pasa excludeImageId, ese registro se excluye del conteo (útil para
+   * decidir si un archivo del bucket sigue siendo usado por otros productos
+   * tras borrar una asociación puntual).
+   */
+  async countImageReferencesByKey(
+    imageKey: string,
+    excludeImageId?: number,
+  ): Promise<number> {
+    const qb = this.productImageRepository
+      .createQueryBuilder('img')
+      .where('img.imageKey = :imageKey', { imageKey });
+
+    if (excludeImageId !== undefined && excludeImageId !== null) {
+      qb.andWhere('img.id != :excludeImageId', { excludeImageId });
+    }
+
+    return qb.getCount();
+  }
+
+  /**
+   * Devuelve la lista de productIds distintos que están usando un imageKey.
+   * Útil para advertir al usuario antes de un borrado en cascada desde la galería.
+   */
+  async getProductIdsUsingImageKey(imageKey: string): Promise<number[]> {
+    const rows = await this.productImageRepository
+      .createQueryBuilder('img')
+      .select('DISTINCT img.productId', 'productId')
+      .where('img.imageKey = :imageKey', { imageKey })
+      .getRawMany();
+
+    return rows.map((r) => Number(r.productId));
   }
 
   async setPrimaryImage(imageId: number): Promise<ProductImage> {

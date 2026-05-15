@@ -6,17 +6,34 @@ import { parse } from 'csv-parse';
 import { BadRequestException } from '@nestjs/common';
 import { formatDateSpanish, now } from './date.helper';
 
-export function addSlug(product: Partial<Product>) {
-  const slug = product.name
-    .normalize('NFD') // Split accented letters into base + diacritic
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-    .replace(/[' ', '/', '•']/g, '-') // Replace unwanted characters with '-'
-    .replace(/-+/g, '-') // Replace multiple hyphens with a single one
+/**
+ * Genera un slug url-safe a partir de un nombre arbitrario.
+ * Reglas:
+ *  - Pasa a minúsculas y quita diacríticos (NFD).
+ *  - Cualquier carácter que no sea [a-z0-9] se convierte en '-'.
+ *  - Colapsa guiones repetidos y los recorta de los extremos.
+ *  - Limita a 120 caracteres para respetar la columna varchar(120) del entity.
+ *  - Si el resultado queda vacío (nombre solo con símbolos/espacios), devuelve 'producto'.
+ */
+export function slugify(name: string): string {
+  if (!name) return 'producto';
+
+  const slug = name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/^-+|-+$/g, ''); // Optionally trim leading/trailing hyphens
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120)
+    .replace(/-+$/g, '');
+
+  return slug.length > 0 ? slug : 'producto';
+}
+
+export function addSlug(product: Partial<Product>) {
   return {
     ...product,
-    slug,
+    slug: slugify(product.name ?? ''),
   };
 }
 

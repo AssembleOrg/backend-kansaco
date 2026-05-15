@@ -222,6 +222,26 @@ export class ImageService {
     }
   }
 
+  /**
+   * Borra un archivo del bucket sin tocar la base de datos.
+   * Se usa cuando ya se desasoció la imagen de un producto a nivel BD y
+   * se determinó que ningún otro producto sigue usando ese key, por lo que
+   * es seguro eliminar el archivo del storage. NO dispara cascade en
+   * ProductImage (a diferencia de `deleteImage`).
+   */
+  async deleteFromBucketOnly(key: string): Promise<void> {
+    try {
+      await this.digitalOceanService.deleteFile(key);
+      this.logger.debug(`Deleted ${key} from bucket (no DB cascade)`);
+    } catch (error) {
+      this.logger.error(
+        `Error deleting ${key} from bucket: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException('Failed to delete image from bucket');
+    }
+  }
+
   async getImageUrl(key: string): Promise<string> {
     return this.digitalOceanService.getFileUrl(key);
   }
