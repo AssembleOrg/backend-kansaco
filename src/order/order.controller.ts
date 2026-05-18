@@ -206,9 +206,7 @@ export class OrderController {
   }
 
   @Get(':id/pdf')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
-  @ApiOperation({ summary: 'Descargar PDF de un pedido específico (solo ADMIN/ASISTENTE)' })
+  @ApiOperation({ summary: 'Descargar PDF de un pedido (propietario, ADMIN o ASISTENTE)' })
   @ApiResponse({ 
     status: 200, 
     description: 'PDF del pedido. El archivo se descarga con el nombre: Presupuesto_{año}-{id}_{nombre_cliente}.pdf. El PDF contiene la misma información y formato que se envía por email al cliente, incluyendo: datos de la empresa, datos del cliente, lista de productos con presentaciones, totales con IVA, y condiciones de pago.',
@@ -237,10 +235,16 @@ export class OrderController {
   async downloadOrderPdf(
     @Param('id') id: string,
     @Res() res: Response,
+    @Request() req: { user: { id: string; rol: UserRole } },
   ): Promise<void> {
     const order = await this.orderService.findOne(id);
     if (!order) {
       throw new NotFoundException(`Order with ID ${id} not found`);
+    }
+
+    const isAdminOrAsistente = [UserRole.ADMIN, UserRole.ASISTENTE].includes(req.user.rol);
+    if (!isAdminOrAsistente && order.userId !== req.user.id) {
+      throw new ForbiddenException('No tienes permiso para descargar este pedido');
     }
 
     // Generar número de presupuesto basado en el ID de la orden
