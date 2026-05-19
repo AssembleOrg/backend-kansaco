@@ -63,13 +63,35 @@ async function bootstrap() {
   // 2. HPP: evita contaminación de parámetros
   app.use(hpp());
 
-  // 4. Rate Limiter: máximo 100 requests por IP cada 15 minutos
+  // 4. Rate Limiter: ventana de 15 minutos.
+  // - Bypass de preflight OPTIONS (no consume cupo).
+  // - Bypass de healthchecks.
+  // - keyGenerator por (IP + Authorization) para que varios usuarios atrás del
+  //   mismo NAT/proxy no compartan el contador.
+  // NOTA: storage in-memory; con múltiples instancias migrar a rate-limit-redis.
+  const rateLimitMax = Number(
+    configService.get<string>('RATE_LIMIT_MAX', '1000'),
+  );
   app.use(
     rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 100, // límite de peticiones
-      standardHeaders: true,
+      windowMs: 5 * 60 * 1000,
+      max: rateLimitMax,
+      standardHeaders: 'draft-7',
       legacyHeaders: false,
+      skip: (req) => {
+        if (req.method === 'OPTIONS') return true;
+        const url = req.originalUrl || req.url || '';
+        return url.startsWith('/api/health') || url === '/api' || url === '/';
+      },
+      keyGenerator: (req) => {
+        const auth = req.headers['authorization'];
+        const ip = req.ip || req.socket.remoteAddress || 'unknown';
+        if (typeof auth === 'string' && auth.length > 0) {
+          // últimos 16 chars del token alcanzan para distinguir usuarios
+          return `${ip}|${auth.slice(-16)}`;
+        }
+        return ip;
+      },
     }),
   );
 
