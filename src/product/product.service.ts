@@ -2,12 +2,12 @@ import { BadRequestException, Injectable, Logger, forwardRef, Inject } from '@ne
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './product.entity';
 import { ProductImage } from './product-image.entity';
-import { In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
 import {
-  addSlug,
   parseCsv,
   parseXlsx,
   parseXml,
+  slugify,
   toCsv,
   toXlsx,
   toXml,
@@ -28,7 +28,38 @@ export class ProductoService {
     private readonly productImageRepository: Repository<ProductImage>,
     @Inject(forwardRef(() => CategoryService))
     private readonly categoryService: CategoryService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Genera un slug único para Product. Si el slug base ya existe, agrega un
+   * sufijo numérico hasta encontrar uno libre. Se ejecuta dentro de la misma
+   * conexión/transacción que el caller para que el insert posterior vea la
+   * misma vista del estado.
+   *
+   * NOTA: esto NO elimina la race condition al 100% sin un UNIQUE constraint
+   * en BD; reduce drásticamente las colisiones y depende del UNIQUE para el
+   * caso patológico.
+   */
+  private async generateUniqueSlug(
+    name: string,
+    manager: EntityManager,
+    excludeId?: number,
+  ): Promise<string> {
+    const base = slugify(name);
+    const repo = manager.getRepository(Product);
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`.slice(0, 120);
+      const where = excludeId
+        ? { slug: candidate, id: Not(excludeId) }
+        : { slug: candidate };
+      const exists = await repo.findOne({ where, select: ['id'] });
+      if (!exists) return candidate;
+    }
+    // fallback: usar timestamp como sufijo (improbable colisionar)
+    return `${base}-${Date.now()}`.slice(0, 120);
+  }
 
   private applyFilters(
     qb: any,
@@ -185,63 +216,69 @@ export class ProductoService {
   async editProduct(id: number, body: Partial<Product>): Promise<Product> {
     const hasNameChange = body.name !== undefined;
 
-    const finalBody = hasNameChange ? addSlug(body) : body;
-
-    // Resolver categorías si se proporcionan
+    // Resolver categorías si se proporcionan (fuera de la transacción está OK,
+    // findOrCreateByNames maneja su propia consistencia).
     let categories: Category[] | undefined;
     if (body.category && Array.isArray(body.category)) {
       categories = await this.resolveCategories(body.category);
-      // Mantener category con los nombres para satisfacer la columna not-null
-      finalBody.category = body.category;
     }
 
-    const product = await this.productRepository.preload({
-      id,
-      ...finalBody,
-    });
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Product);
 
-    if (!product) {
-      throw new BadRequestException(`Product with id: ${id} not found`);
-    }
+      const finalBody: Partial<Product> = { ...body };
+      if (hasNameChange) {
+        finalBody.slug = await this.generateUniqueSlug(body.name, manager, id);
+      }
+      if (categories !== undefined) {
+        // Mantener category con los nombres para satisfacer la columna not-null
+        finalBody.category = body.category as string[];
+      }
 
-    // Asignar categorías si se resolvieron
-    if (categories !== undefined) {
-      product.categories = categories;
-    }
+      const product = await repo.preload({ id, ...finalBody });
+      if (!product) {
+        throw new BadRequestException(`Product with id: ${id} not found`);
+      }
+      if (categories !== undefined) {
+        product.categories = categories;
+      }
 
-    const saved = await this.productRepository.save(product);
+      const saved = await repo.save(product);
 
-    // Recargar con relaciones para que la response incluya categories
-    return await this.productRepository.findOne({
-      where: { id: saved.id },
-      relations: ['categories'],
+      return repo.findOne({
+        where: { id: saved.id },
+        relations: ['categories'],
+      });
     });
   }
 
   async createProduct(body: Partial<Product>): Promise<Product> {
-    const bodyWithSlug = addSlug(body);
-    
-    // Resolver categorías si se proporcionan
+    // Resolver categorías afuera de la tx (su lógica es idempotente).
     let categories: Category[] | undefined;
     if (body.category && Array.isArray(body.category)) {
       categories = await this.resolveCategories(body.category);
-      // Mantener category con los nombres para satisfacer la columna not-null
-      bodyWithSlug.category = body.category;
     }
 
-    const product = this.productRepository.create(bodyWithSlug);
-    
-    // Asignar categorías si se resolvieron
-    if (categories !== undefined) {
-      product.categories = categories;
-    }
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Product);
 
-    const saved = await this.productRepository.save(product);
+      const slug = await this.generateUniqueSlug(body.name ?? '', manager);
+      const bodyWithSlug: Partial<Product> = { ...body, slug };
+      if (categories !== undefined) {
+        bodyWithSlug.category = body.category as string[];
+      }
 
-    // Recargar con relaciones para que la response incluya categories
-    return await this.productRepository.findOne({
-      where: { id: saved.id },
-      relations: ['categories'],
+      const product = repo.create(bodyWithSlug);
+      if (categories !== undefined) {
+        product.categories = categories;
+      }
+
+      const saved = await repo.save(product);
+
+      return repo.findOne({
+        where: { id: saved.id },
+        relations: ['categories'],
+      });
     });
   }
 
@@ -408,47 +445,51 @@ export class ProductoService {
     imageKey: string,
     isPrimary: boolean = false,
   ): Promise<ProductImage> {
-    const product = await this.productRepository.findOne({
-      where: { id: productId },
+    return this.dataSource.transaction(async (manager) => {
+      // Lock pessimista del producto: serializa todas las operaciones de imagen
+      // sobre este product mientras dure la transacción.
+      const product = await manager.findOne(Product, {
+        where: { id: productId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!product) {
+        throw new BadRequestException(`Product with id: ${productId} not found`);
+      }
+
+      const imageRepo = manager.getRepository(ProductImage);
+
+      if (isPrimary) {
+        await imageRepo.update(
+          { productId, isPrimary: true },
+          { isPrimary: false },
+        );
+      }
+
+      const maxOrder = await imageRepo
+        .createQueryBuilder('image')
+        .where('image.productId = :productId', { productId })
+        .select('MAX(image.order)', 'max')
+        .getRawOne();
+
+      const newOrder = maxOrder?.max !== null ? maxOrder.max + 1 : 0;
+
+      const productImage = imageRepo.create({
+        productId,
+        imageUrl,
+        imageKey,
+        order: newOrder,
+        isPrimary,
+      });
+
+      const savedImage = await imageRepo.save(productImage);
+
+      if (isPrimary) {
+        await this.updateProductImageUrl(productId, manager);
+      }
+
+      return savedImage;
     });
-
-    if (!product) {
-      throw new BadRequestException(`Product with id: ${productId} not found`);
-    }
-
-    // Si esta imagen es principal, quitar la principal anterior
-    if (isPrimary) {
-      await this.productImageRepository.update(
-        { productId, isPrimary: true },
-        { isPrimary: false },
-      );
-    }
-
-    // Obtener el máximo orden actual para este producto
-    const maxOrder = await this.productImageRepository
-      .createQueryBuilder('image')
-      .where('image.productId = :productId', { productId })
-      .select('MAX(image.order)', 'max')
-      .getRawOne();
-
-    const newOrder = maxOrder?.max !== null ? maxOrder.max + 1 : 0;
-
-    const productImage = this.productImageRepository.create({
-      productId,
-      imageUrl,
-      imageKey,
-      order: newOrder,
-      isPrimary,
-    });
-
-    const savedImage = await this.productImageRepository.save(productImage);
-
-    // Si esta imagen es principal, actualizar el imageUrl del producto
-    if (isPrimary) {
-      await this.updateProductImageUrl(productId);
-    }
-
-    return savedImage;
   }
 
   async getProductImages(productId: number): Promise<ProductImage[]> {
@@ -461,78 +502,95 @@ export class ProductoService {
   /**
    * Actualiza el imageUrl del producto basándose en la imagen principal o la primera imagen
    * Prioridad: 1) isPrimary = true, 2) order = 0, 3) primera imagen por orden
+   *
+   * Si se pasa `manager`, se ejecuta dentro de esa transacción.
    */
-  private async updateProductImageUrl(productId: number): Promise<void> {
-    // Buscar la imagen principal (isPrimary = true)
-    let primaryImage = await this.productImageRepository.findOne({
+  private async updateProductImageUrl(
+    productId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const imageRepo = manager
+      ? manager.getRepository(ProductImage)
+      : this.productImageRepository;
+    const productRepo = manager
+      ? manager.getRepository(Product)
+      : this.productRepository;
+
+    let primaryImage = await imageRepo.findOne({
       where: { productId, isPrimary: true },
       order: { order: 'ASC' },
     });
 
-    // Si no hay imagen principal, buscar la imagen con order = 0
     if (!primaryImage) {
-      primaryImage = await this.productImageRepository.findOne({
+      primaryImage = await imageRepo.findOne({
         where: { productId, order: 0 },
         order: { id: 'ASC' },
       });
     }
 
-    // Si aún no hay imagen, buscar la primera imagen por orden
     if (!primaryImage) {
-      primaryImage = await this.productImageRepository.findOne({
+      primaryImage = await imageRepo.findOne({
         where: { productId },
         order: { order: 'ASC', id: 'ASC' },
       });
     }
 
-    // Actualizar el imageUrl del producto
     if (primaryImage) {
-      await this.productRepository.update(productId, {
-        imageUrl: primaryImage.imageUrl,
-      });
+      await productRepo.update(productId, { imageUrl: primaryImage.imageUrl });
       this.logger.debug(
         `Updated product ${productId} imageUrl to: ${primaryImage.imageUrl}`,
       );
     } else {
-      // Si no hay imágenes, limpiar el imageUrl
-      await this.productRepository.update(productId, {
-        imageUrl: null,
-      });
+      await productRepo.update(productId, { imageUrl: null });
       this.logger.debug(`Cleared product ${productId} imageUrl (no images)`);
     }
   }
 
   async deleteProductImage(imageId: number): Promise<void> {
-    const image = await this.productImageRepository.findOne({
+    // Localizar primero el productId (sin lock) para luego bloquear el producto.
+    const probe = await this.productImageRepository.findOne({
       where: { id: imageId },
+      select: ['id', 'productId'],
     });
 
-    if (!image) {
+    if (!probe) {
       throw new BadRequestException(`Image with id: ${imageId} not found`);
     }
 
-    const productId = image.productId;
-    await this.productImageRepository.remove(image);
+    const productId = probe.productId;
 
-    // Re-numerar las imágenes restantes a 0..N y marcar la primera como
-    // principal. Esto evita huecos en `order` y que el producto quede sin
-    // ninguna imagen con isPrimary=true después de borrar la principal.
-    const remainingImages = await this.productImageRepository.find({
-      where: { productId },
-      order: { order: 'ASC', id: 'ASC' },
-    });
+    await this.dataSource.transaction(async (manager) => {
+      // Lock del producto para serializar concurrencia con add/reorder/setPrimary.
+      await manager.findOne(Product, {
+        where: { id: productId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    await Promise.all(
-      remainingImages.map((img, i) =>
-        this.productImageRepository.update(
-          { id: img.id },
+      const imageRepo = manager.getRepository(ProductImage);
+
+      const image = await imageRepo.findOne({ where: { id: imageId } });
+      if (!image) {
+        // Otra transacción la borró antes; nada que hacer.
+        return;
+      }
+
+      await imageRepo.remove(image);
+
+      const remainingImages = await imageRepo.find({
+        where: { productId },
+        order: { order: 'ASC', id: 'ASC' },
+      });
+
+      // Renumerar dentro de la misma transacción.
+      for (let i = 0; i < remainingImages.length; i++) {
+        await imageRepo.update(
+          { id: remainingImages[i].id },
           { order: i, isPrimary: i === 0 },
-        ),
-      ),
-    );
+        );
+      }
 
-    // Actualizar el imageUrl del producto basándose en la nueva imagen principal
-    await this.updateProductImageUrl(productId);
+      await this.updateProductImageUrl(productId, manager);
+    });
   }
 
   /**
@@ -571,114 +629,114 @@ export class ProductoService {
   }
 
   async setPrimaryImage(imageId: number): Promise<ProductImage> {
-    const image = await this.productImageRepository.findOne({
+    const probe = await this.productImageRepository.findOne({
       where: { id: imageId },
-      relations: ['product'],
+      select: ['id', 'productId'],
     });
-
-    if (!image) {
+    if (!probe) {
       throw new BadRequestException(`Image with id: ${imageId} not found`);
     }
+    const productId = probe.productId;
 
-    // Quitar la principal anterior del mismo producto
-    await this.productImageRepository.update(
-      { productId: image.productId, isPrimary: true },
-      { isPrimary: false },
-    );
+    return this.dataSource.transaction(async (manager) => {
+      await manager.findOne(Product, {
+        where: { id: productId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    // Establecer esta como principal
-    image.isPrimary = true;
-    const savedImage = await this.productImageRepository.save(image);
+      const imageRepo = manager.getRepository(ProductImage);
 
-    // Actualizar el imageUrl del producto con la nueva imagen principal
-    await this.updateProductImageUrl(image.productId);
+      const image = await imageRepo.findOne({ where: { id: imageId } });
+      if (!image) {
+        throw new BadRequestException(`Image with id: ${imageId} not found`);
+      }
 
-    return savedImage;
+      await imageRepo.update(
+        { productId, isPrimary: true },
+        { isPrimary: false },
+      );
+
+      image.isPrimary = true;
+      const savedImage = await imageRepo.save(image);
+
+      await this.updateProductImageUrl(productId, manager);
+
+      return savedImage;
+    });
   }
 
   async reorderProductImages(
     productId: number,
     imageIds: number[],
   ): Promise<void> {
-    // Eliminar duplicados del array
     const uniqueImageIds = [...new Set(imageIds)];
 
     this.logger.debug(
       `Reorder request for product ${productId} with ${uniqueImageIds.length} unique image IDs: ${uniqueImageIds.join(', ')}`,
     );
 
-    // Validar que el producto existe
-    const product = await this.productRepository.findOne({
-      where: { id: productId },
-    });
-
-    if (!product) {
-      throw new BadRequestException(`Product with id: ${productId} not found`);
-    }
-
-    // Obtener todas las imágenes del producto
-    const allProductImages = await this.productImageRepository.find({
-      where: { productId },
-    });
-
-    this.logger.debug(
-      `Product ${productId} has ${allProductImages.length} images: ${allProductImages.map((img) => img.id).join(', ')}`,
-    );
-
-    // Si no hay imágenes, no hay nada que reordenar
-    if (allProductImages.length === 0) {
-      throw new BadRequestException(
-        `Product ${productId} has no images to reorder`,
-      );
-    }
-
-    // Validar que todas las imágenes solicitadas pertenezcan al producto
-    const productImageIds = allProductImages.map((img) => img.id);
-    const invalidIds = uniqueImageIds.filter(
-      (id) => !productImageIds.includes(id),
-    );
-
-    if (invalidIds.length > 0) {
-      // Verificar si están enviando índices en lugar de IDs
-      const maxIndex = allProductImages.length - 1;
-      const looksLikeIndices = invalidIds.every(
-        (id) => id >= 0 && id <= maxIndex,
-      );
-
-      let errorMessage = `Some images do not belong to this product. Invalid IDs: ${invalidIds.join(', ')}. Valid IDs: ${productImageIds.join(', ')}`;
-
-      if (looksLikeIndices) {
-        errorMessage += `\n\n⚠️  It looks like you're sending array indices (${invalidIds.join(', ')}) instead of image IDs. Please send the actual image IDs from the product.`;
+    await this.dataSource.transaction(async (manager) => {
+      // Lock del producto: bloquea add/setPrimary/delete concurrentes durante el reorder.
+      const product = await manager.findOne(Product, {
+        where: { id: productId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!product) {
+        throw new BadRequestException(`Product with id: ${productId} not found`);
       }
 
-      this.logger.error(
-        `Invalid image IDs for product ${productId}: ${invalidIds.join(', ')}. Valid IDs: ${productImageIds.join(', ')}`,
+      const imageRepo = manager.getRepository(ProductImage);
+      const allProductImages = await imageRepo.find({ where: { productId } });
+
+      if (allProductImages.length === 0) {
+        throw new BadRequestException(
+          `Product ${productId} has no images to reorder`,
+        );
+      }
+
+      const productImageIds = allProductImages.map((img) => img.id);
+      const invalidIds = uniqueImageIds.filter(
+        (id) => !productImageIds.includes(id),
       );
-      throw new BadRequestException(errorMessage);
-    }
 
-    // Validar que se están reordenando todas las imágenes del producto
-    // Permitimos reordenar solo un subconjunto, pero logueamos si no son todas
-    if (uniqueImageIds.length !== productImageIds.length) {
-      this.logger.warn(
-        `Reorder request for product ${productId} has ${uniqueImageIds.length} images, but product has ${productImageIds.length} images. Reordering only the provided images.`,
+      if (invalidIds.length > 0) {
+        const maxIndex = allProductImages.length - 1;
+        const looksLikeIndices = invalidIds.every(
+          (id) => id >= 0 && id <= maxIndex,
+        );
+
+        let errorMessage = `Some images do not belong to this product. Invalid IDs: ${invalidIds.join(', ')}. Valid IDs: ${productImageIds.join(', ')}`;
+
+        if (looksLikeIndices) {
+          errorMessage += `\n\n⚠️  It looks like you're sending array indices (${invalidIds.join(', ')}) instead of image IDs. Please send the actual image IDs from the product.`;
+        }
+
+        this.logger.error(
+          `Invalid image IDs for product ${productId}: ${invalidIds.join(', ')}. Valid IDs: ${productImageIds.join(', ')}`,
+        );
+        throw new BadRequestException(errorMessage);
+      }
+
+      if (uniqueImageIds.length !== productImageIds.length) {
+        this.logger.warn(
+          `Reorder request for product ${productId} has ${uniqueImageIds.length} images, but product has ${productImageIds.length} images. Reordering only the provided images.`,
+        );
+      }
+
+      // Updates secuenciales dentro de la transacción para evitar deadlocks con el lock pessimista.
+      for (let i = 0; i < uniqueImageIds.length; i++) {
+        await imageRepo.update(
+          { id: uniqueImageIds[i] },
+          { order: i, isPrimary: i === 0 },
+        );
+      }
+
+      await this.updateProductImageUrl(productId, manager);
+
+      this.logger.debug(
+        `Successfully reordered ${uniqueImageIds.length} images for product ${productId}`,
       );
-    }
-
-    // Actualizar el orden y isPrimary en paralelo
-    // La primera imagen (order 0) es la principal
-    await Promise.all(
-      uniqueImageIds.map((id, i) =>
-        this.productImageRepository.update({ id }, { order: i, isPrimary: i === 0 }),
-      ),
-    );
-
-    // Actualizar el imageUrl del producto después de reordenar
-    await this.updateProductImageUrl(productId);
-
-    this.logger.debug(
-      `Successfully reordered ${uniqueImageIds.length} images for product ${productId}`,
-    );
+    });
   }
 
   /**

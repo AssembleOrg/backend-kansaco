@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './errors/all-exceptions.filter';
 import { TransformInterceptor } from './interceptors/transform.interceptor';
 import { DateSerializeInterceptor } from './interceptors/date-serialize.interceptor';
+import { RequestContextInterceptor } from './interceptors/request-context.interceptor';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -54,8 +55,8 @@ async function bootstrap() {
     origin: allowedOrigins,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
-    exposedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-Request-Id'],
+    exposedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
@@ -99,6 +100,8 @@ async function bootstrap() {
   // Pipes, filtros e interceptores globales (igual que antes)
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(
+    // RequestContextInterceptor primero: genera el x-request-id antes de cualquier otro
+    new RequestContextInterceptor(),
     new TransformInterceptor(),
     new DateSerializeInterceptor(),
   );

@@ -16,6 +16,7 @@ import {
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -338,6 +339,7 @@ export class ProductoController {
   }
 
   @Patch('file/updatePrices')
+  @Throttle({ short: { limit: 1, ttl: 5000 }, medium: { limit: 3, ttl: 60_000 } })
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
@@ -378,6 +380,7 @@ export class ProductoController {
   }
 
   @Post('/:id/image')
+  @Throttle({ short: { limit: 2, ttl: 2000 }, medium: { limit: 10, ttl: 10_000 } })
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(AuthGuard, RolesGuard)
   @ApiBearerAuth()
@@ -451,6 +454,7 @@ export class ProductoController {
   }
 
   @Post('/:id/image/associate')
+  @Throttle({ short: { limit: 3, ttl: 2000 }, medium: { limit: 15, ttl: 10_000 } })
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @UseGuards(AuthGuard, RolesGuard)
   @ApiBearerAuth()
