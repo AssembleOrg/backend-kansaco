@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
   ValidationPipe,
   Res,
@@ -29,6 +30,7 @@ import {
 } from '@nestjs/swagger';
 import { ProductoService } from './product.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { OptionalAuthGuard } from 'src/guards/optional-auth.guard';
 import { ProductGet } from './dto/productGet.dto';
 import { ProductGetPaginated } from './dto/productGetPaginated.dto';
 import { ProductResponse } from './dto/productResponse.dto';
@@ -50,6 +52,7 @@ import { cleanImageKey } from '../helpers/image.helper';
 import { CategoryResponseDto } from '../category/dto/category-response.dto';
 import { DateTime } from 'luxon';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { PricingService } from '../pricing/pricing.service';
 
 @Controller('product')
 @ApiTags('Kansaco - Products')
@@ -76,7 +79,15 @@ export class ProductoController {
    * Helper para convertir Product a ProductResponse
    * Incluye transformación de categorías relacionadas
    */
-  private toProductResponse(product: any): ProductResponse {
+  /**
+   * @param rol rol del usuario que consulta (undefined = anónimo).
+   * @param percentage recargo de la lista de ese rol, ya resuelto por request.
+   */
+  private toProductResponse(
+    product: any,
+    rol?: UserRole,
+    percentage = 0,
+  ): ProductResponse {
     // Extraer categorías antes de plainToInstance para evitar problemas con DateTime
     const categories = product.categories;
     
@@ -90,12 +101,22 @@ export class ProductoController {
     delete productCopy.cartItems;
     delete productCopy.discounts;
     
+    // El precio base nunca se expone tal cual: se calcula el precio de la lista
+    // del rol. Anónimo / minorista(pendiente) / admin / asistente => null.
+    delete productCopy.price;
+
     // Transformar el producto base usando plainToInstance
     // Esto solo transforma las propiedades simples, no las relaciones
     const response = plainToInstance(ProductResponse, productCopy, {
       excludeExtraneousValues: false,
     });
-    
+
+    response.price = this.pricingService.applyRolePricing(
+      product.price,
+      rol,
+      percentage,
+    );
+
     // Transformar categorías relacionadas manualmente si existen
     if (categories && Array.isArray(categories)) {
       response.categories = categories.map((cat: any) => ({
@@ -112,9 +133,11 @@ export class ProductoController {
     private readonly productoService: ProductoService,
     private readonly imageService: ImageService,
     private readonly analyticsService: AnalyticsService,
+    private readonly pricingService: PricingService,
   ) {}
 
   @Get()
+  @UseGuards(OptionalAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ description: 'Paginated list of products with optional filters' })
   @ApiQuery({
@@ -176,7 +199,10 @@ export class ProductoController {
   @ApiExtraModels(ProductGetPaginated)
   async getAllProducts(
     @Query(ValidationPipe) query: ProductGetPaginated,
+    @Req() req: any,
   ): Promise<PaginatedResponse<ProductResponse>> {
+    const rol: UserRole | undefined = req.user?.rol;
+    const percentage = rol ? await this.pricingService.getPercentage(rol) : 0;
     const { page: rawPage = 1, limit: rawLimit = 20, ...filters } = query;
     const page = Math.max(1, Number(rawPage));
     const limit = Math.min(Math.max(1, Number(rawLimit)), 100);
@@ -203,11 +229,14 @@ export class ProductoController {
 
     return {
       ...result,
-      data: result.data.map((product) => this.toProductResponse(product)),
+      data: result.data.map((product) =>
+        this.toProductResponse(product, rol, percentage),
+      ),
     };
   }
 
   @Get('/filter')
+  @UseGuards(OptionalAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: [ProductResponse] })
   @ApiQuery({
@@ -255,14 +284,17 @@ export class ProductoController {
   @ApiExtraModels(ProductGet)
   async getFilteredProducts(
     @Query(ValidationPipe) query: ProductGet,
+    @Req() req: any,
   ): Promise<ProductResponse[]> {
+    const rol: UserRole | undefined = req.user?.rol;
+    const percentage = rol ? await this.pricingService.getPercentage(rol) : 0;
     const filteredProducts = await this.productoService.getFilteredProducts({
       ...query,
       category: query.category ? [].concat(query.category) : undefined,
     });
     return filteredProducts.length > 0
       ? filteredProducts.map((product) =>
-          this.toProductResponse(product),
+          this.toProductResponse(product, rol, percentage),
         )
       : [];
   }
@@ -271,10 +303,15 @@ export class ProductoController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: ProductResponse })
-  async getProduct(@Param('id') id: number): Promise<ProductResponse> {
+  async getProduct(
+    @Param('id') id: number,
+    @Req() req: any,
+  ): Promise<ProductResponse> {
+    const rol: UserRole | undefined = req.user?.rol;
+    const percentage = rol ? await this.pricingService.getPercentage(rol) : 0;
     const product = await this.productoService.getProduct(id);
     const images = await this.productoService.getProductImages(id);
-    const response = this.toProductResponse(product);
+    const response = this.toProductResponse(product, rol, percentage);
     response.images = images.map((img) => this.toProductImageResponse(img));
     return response;
   }

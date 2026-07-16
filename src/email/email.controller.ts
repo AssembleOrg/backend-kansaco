@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Post,
   UseGuards,
   Logger,
@@ -21,6 +22,8 @@ import { ConfigService } from '@nestjs/config';
 import { CustomerType } from './dto/send-order-email.dto';
 import { PdfService } from '../pdf/pdf.service';
 import { CartService } from '../cart/cart.service';
+import { PricingService } from '../pricing/pricing.service';
+import { esCategoriaB2B, UserRole } from '../user/user.enum';
 
 @ApiTags('Email')
 @Controller('email')
@@ -34,6 +37,7 @@ export class EmailController {
     private readonly configService: ConfigService,
     private readonly pdfService: PdfService,
     private readonly cartService: CartService,
+    private readonly pricingService: PricingService,
   ) {}
 
   @Post('send-order')
@@ -53,38 +57,62 @@ export class EmailController {
     },
   })
   async sendOrderEmail(
-    @Request() req: { user: { id: string; email: string } },
+    @Request() req: { user: { id: string; email: string; rol: UserRole } },
     @Body() partialOrderData: SendOrderEmailDto,
   ): Promise<{ message: string; orderId: string; presupuestoNumber: string; pdfBase64: string }> {
     this.logger.log(`Recibido pedido de ${partialOrderData.contactInfo.fullName}`);
 
+    // Sólo las categorías B2B pueden comprar (Kansaco no vende minorista).
+    const rol = req.user.rol;
+    if (!esCategoriaB2B(rol)) {
+      throw new ForbiddenException(
+        'Tu cuenta no tiene una categoría comercial habilitada para realizar pedidos.',
+      );
+    }
+    const percentage = await this.pricingService.getPercentage(rol);
+
     // Obtener el carrito del usuario para incluir las presentaciones
     const cart = await this.cartService.getCartByUserId(req.user.id);
-    
-    // Construir los items del pedido desde el carrito, incluyendo presentaciones
-    // Si el frontend envió items, los usamos pero completamos las presentaciones desde el carrito
+
+    // Construir los items del pedido desde el carrito.
+    // El precio unitario se RECALCULA en el backend a partir del precio base del
+    // producto (BD) y la lista de precios del rol. Se ignora cualquier unitPrice
+    // que envíe el frontend (no es fuente de verdad, sería manipulable).
     // Filtramos items con quantity <= 0 (filas zombie por bug histórico de deleteItemFromCart)
     const items: OrderItemDto[] = cart.items
       .filter((cartItem) => cartItem.quantity > 0)
       .map((cartItem) => {
-        // Buscar si el frontend envió este item (por productId)
         const frontendItem = partialOrderData.items?.find(
           (item) => item.productId === cartItem.productId,
         );
+
+        const unitPrice =
+          this.pricingService.applyRolePricing(
+            Number(cartItem.product?.price ?? 0),
+            rol,
+            percentage,
+          ) ?? undefined;
 
         return {
           productId: cartItem.productId,
           productName: frontendItem?.productName || cartItem.product?.name || 'Producto sin nombre',
           quantity: frontendItem?.quantity || cartItem.quantity,
-          unitPrice: frontendItem?.unitPrice || cartItem.product?.price || undefined,
+          unitPrice,
           presentation: cartItem.presentation || undefined, // Siempre usar presentación del carrito
         };
       });
 
-    // Si el frontend no envió items, usar los del carrito. Si envió items, usar los del carrito con presentaciones
+    // Total recalculado en backend a partir de los precios ya recalculados.
+    const totalAmount = items.reduce(
+      (sum, item) => sum + (item.unitPrice ?? 0) * item.quantity,
+      0,
+    );
+
+    // Se sobreescriben items y totalAmount con los valores del backend.
     const orderData: SendOrderEmailDto = {
       ...partialOrderData,
       items: items,
+      totalAmount,
     };
 
     // Crear orden en la base de datos

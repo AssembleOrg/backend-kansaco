@@ -44,6 +44,8 @@ import { DealStageHistory } from './deal/deal-stage-history.entity';
 import { DealNote } from './deal/deal-note.entity';
 import { Quote } from './quote/quote.entity';
 import { QuoteItem } from './quote/quote-item.entity';
+import { PricingModule } from './pricing/pricing.module';
+import { RolePricing } from './pricing/role-pricing.entity';
 
 @Module({
   imports: [
@@ -85,6 +87,7 @@ import { QuoteItem } from './quote/quote-item.entity';
           DealNote,
           Quote,
           QuoteItem,
+          RolePricing,
         ],
         synchronize: false,
       }),
@@ -118,6 +121,7 @@ import { QuoteItem } from './quote/quote-item.entity';
     PipelineStageModule,
     DealModule,
     QuoteModule,
+    PricingModule,
   ],
   controllers: [AppController],
   providers: [

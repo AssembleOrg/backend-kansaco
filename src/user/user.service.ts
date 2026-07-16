@@ -128,6 +128,13 @@ export class UserService {
     return this.findOne(id);
   }
 
+  /** Cambia la categoría/rol de un usuario. Usado por admin para "aprobar" cuentas B2B. */
+  async changeRole(id: string, rol: UserRole) {
+    await this.findOne(id); // valida existencia (lanza 404 si no existe)
+    await this.userRepository.update(id, { rol });
+    return this.findOne(id);
+  }
+
   async remove(id: string) {
     const user = await this.userRepository.findOne({
       where: { id },

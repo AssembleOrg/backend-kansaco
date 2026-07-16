@@ -5,6 +5,7 @@ import {
   Get,
   Logger,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -14,7 +15,11 @@ import { UserService } from './user.service';
 import { UserLogin } from './dto/userLogin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangeRoleDto } from './dto/change-role.dto';
 import { AuthGuard } from '../guards/auth.guard';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { UserRole } from './user.enum';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('users')
@@ -69,6 +74,18 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.userService.update(req.user.id, updateUserDto);
+  }
+
+  @Patch('/:id/rol')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Cambiar la categoría/rol de un usuario (solo ADMIN)' })
+  async changeRole(
+    @Param('id') id: string,
+    @Body() changeRoleDto: ChangeRoleDto,
+  ) {
+    return this.userService.changeRole(id, changeRoleDto.rol);
   }
 
   @Get('/:id')
