@@ -133,9 +133,12 @@ export class OrderService {
   ): Promise<Order> {
     const order = await this.findOne(id);
 
+    const isStaff =
+      userRole === UserRole.ADMIN || userRole === UserRole.ASISTENTE;
+
     // Validación 1: Verificar propiedad de la orden
     // Si no es ADMIN/ASISTENTE, solo puede editar sus propias órdenes
-    if (userRole !== UserRole.ADMIN && userRole !== UserRole.ASISTENTE) {
+    if (!isStaff) {
       if (order.userId !== userId) {
         throw new ForbiddenException(
           'No tienes permisos para editar esta orden',
@@ -143,8 +146,19 @@ export class OrderService {
       }
     }
 
+    // El staff (ADMIN/ASISTENTE) puede editar SOLO las notas en cualquier estado
+    // (p. ej. registrar el motivo de una cancelación). El resto de campos y
+    // cualquier edición de un cliente siguen restringidos a órdenes PENDIENTE.
+    const onlyEditsNotes =
+      updateData.notes !== undefined &&
+      updateData.contactInfo === undefined &&
+      updateData.businessInfo === undefined &&
+      updateData.items === undefined;
+
+    const canEditNotesAnyStatus = isStaff && onlyEditsNotes;
+
     // Validación 2: Solo se pueden editar órdenes PENDIENTE
-    if (order.status !== OrderStatus.PENDIENTE) {
+    if (order.status !== OrderStatus.PENDIENTE && !canEditNotesAnyStatus) {
       throw new BadRequestException(
         `No se pueden modificar órdenes con estado ${order.status}. Solo las órdenes PENDIENTE pueden ser editadas.`,
       );

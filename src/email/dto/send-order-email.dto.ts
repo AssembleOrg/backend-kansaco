@@ -18,6 +18,21 @@ export class ContactInfoDto {
   @ApiProperty({ description: 'Dirección de envío' })
   @IsString()
   address: string;
+
+  @ApiPropertyOptional({ description: 'Localidad del cliente' })
+  @IsString()
+  @IsOptional()
+  localidad?: string;
+
+  @ApiPropertyOptional({ description: 'Provincia del cliente' })
+  @IsString()
+  @IsOptional()
+  provincia?: string;
+
+  @ApiPropertyOptional({ description: 'Código postal del cliente' })
+  @IsString()
+  @IsOptional()
+  codigoPostal?: string;
 }
 
 export class BusinessInfoDto {

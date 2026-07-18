@@ -34,8 +34,18 @@ export class UserService {
   ) {}
 
   async create(createUserDto: CreateUserDto) {
-    const { email, password, nombre, apellido, direccion, telefono, rol } =
-      createUserDto;
+    const {
+      email,
+      password,
+      nombre,
+      apellido,
+      direccion,
+      localidad,
+      provincia,
+      codigoPostal,
+      telefono,
+      rol,
+    } = createUserDto;
 
     validateUser(email, password, nombre, apellido);
 
@@ -54,7 +64,10 @@ export class UserService {
       password: hashedPassword,
       nombre,
       apellido,
-      direccion,
+      direccion: direccion?.trim(),
+      localidad: localidad?.trim(),
+      provincia: provincia?.trim(),
+      codigoPostal: codigoPostal?.trim(),
       telefono,
       rol: rol || UserRole.CLIENTE_MINORISTA,
     });

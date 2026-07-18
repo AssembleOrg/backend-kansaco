@@ -45,11 +45,34 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'User Address',
     type: String,
-    required: false,
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Direccion should not be empty' })
   @IsString()
-  direccion?: string;
+  direccion: string;
+
+  @ApiProperty({
+    description: 'User Locality',
+    type: String,
+  })
+  @IsNotEmpty({ message: 'Localidad should not be empty' })
+  @IsString()
+  localidad: string;
+
+  @ApiProperty({
+    description: 'User Province',
+    type: String,
+  })
+  @IsNotEmpty({ message: 'Provincia should not be empty' })
+  @IsString()
+  provincia: string;
+
+  @ApiProperty({
+    description: 'User Postal Code',
+    type: String,
+  })
+  @IsNotEmpty({ message: 'Codigo postal should not be empty' })
+  @IsString()
+  codigoPostal: string;
 
   @ApiProperty({
     description: 'User Phone',

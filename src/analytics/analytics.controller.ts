@@ -95,6 +95,11 @@ export class AnalyticsController {
     });
   }
 
+  @Get('users-by-zone')
+  async getUsersByZone() {
+    return this.analyticsService.getUsersByZone();
+  }
+
   @Get('product-ranking')
   @ApiQuery({ name: 'order', required: false, enum: ['top', 'bottom'] })
   @ApiQuery({ name: 'limit', required: false, type: Number })

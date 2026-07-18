@@ -313,7 +313,10 @@ export class OrderController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar una orden (solo PENDIENTE)' })
+  @ApiOperation({
+    summary:
+      'Actualizar una orden (solo PENDIENTE; el staff puede editar solo notas en cualquier estado)',
+  })
   @ApiResponse({ status: 200, description: 'Orden actualizada correctamente' })
   @ApiResponse({ status: 403, description: 'No autorizado para editar esta orden' })
   @ApiResponse({ status: 400, description: 'Orden no puede ser editada (no está PENDIENTE)' })

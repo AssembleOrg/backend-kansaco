@@ -47,6 +47,27 @@ export class User {
 
   @Column({
     type: 'varchar',
+    nullable: true,
+    length: 120,
+  })
+  localidad: string;
+
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    length: 80,
+  })
+  provincia: string;
+
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    length: 12,
+  })
+  codigoPostal: string;
+
+  @Column({
+    type: 'varchar',
     nullable: false,
     length: 20,
   })
