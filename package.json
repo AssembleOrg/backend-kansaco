@@ -23,6 +23,7 @@
     "migration:generate": "npm run typeorm -- migration:generate --dataSource src/database/datasource.ts",
     "migration:run": "npm run typeorm -- migration:run --dataSource src/database/datasource.ts",
     "migration:revert": "npm run typeorm -- migration:revert --dataSource src/database/datasource.ts",
+    "migration:show": "npm run typeorm -- migration:show --dataSource src/database/datasource.ts",
     "seed:products": "ts-node -r tsconfig-paths/register scripts/seed-products.ts",
     "seed:users": "ts-node -r tsconfig-paths/register scripts/seed-users.ts",
     "drop:users": "ts-node -r tsconfig-paths/register scripts/drop-users-table.ts",

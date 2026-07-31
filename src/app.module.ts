@@ -46,6 +46,8 @@ import { Quote } from './quote/quote.entity';
 import { QuoteItem } from './quote/quote-item.entity';
 import { PricingModule } from './pricing/pricing.module';
 import { RolePricing } from './pricing/role-pricing.entity';
+import { SubmissionModule } from './submission/submission.module';
+import { ContactSubmission } from './submission/submission.entity';
 
 @Module({
   imports: [
@@ -88,6 +90,7 @@ import { RolePricing } from './pricing/role-pricing.entity';
           Quote,
           QuoteItem,
           RolePricing,
+          ContactSubmission,
         ],
         synchronize: false,
       }),
@@ -122,6 +125,7 @@ import { RolePricing } from './pricing/role-pricing.entity';
     DealModule,
     QuoteModule,
     PricingModule,
+    SubmissionModule,
   ],
   controllers: [AppController],
   providers: [
