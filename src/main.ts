@@ -11,6 +11,7 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 // middlewares de seguridad
 import helmet from 'helmet';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import * as hpp from 'hpp';
 
@@ -35,6 +36,9 @@ async function bootstrap() {
   if (trustProxy) {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
   }
+
+  // Comprime las respuestas (gzip) para bajar egress en Railway.
+  app.use(compression());
 
   // 1. Helmet: cabeceras HTTP seguras (configured to work with CORS)
   app.use(
