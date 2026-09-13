@@ -22,3 +22,16 @@ export const B2B_ROLES: readonly UserRole[] = [
 
 export const esCategoriaB2B = (rol: UserRole | null | undefined): boolean =>
   !!rol && B2B_ROLES.includes(rol);
+
+/** Motivo por el que una cuenta está frenada (no puede comprar). */
+export enum UserBloqueo {
+  COBRANZAS = 'COBRANZAS',
+  VENTAS = 'VENTAS',
+}
+
+/** Texto que ve el cliente frenado. Mismo texto en el front (types/auth.ts). */
+export const MENSAJE_BLOQUEO: Record<UserBloqueo, string> = {
+  [UserBloqueo.COBRANZAS]:
+    'Su cuenta está frenada. Comuníquese con el área de cobranzas.',
+  [UserBloqueo.VENTAS]: 'Su cuenta está frenada. Comuníquese con ventas.',
+};

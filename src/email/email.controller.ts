@@ -23,7 +23,8 @@ import { CustomerType } from './dto/send-order-email.dto';
 import { PdfService } from '../pdf/pdf.service';
 import { CartService } from '../cart/cart.service';
 import { PricingService } from '../pricing/pricing.service';
-import { esCategoriaB2B, UserRole } from '../user/user.enum';
+import { UserService } from '../user/user.service';
+import { esCategoriaB2B, MENSAJE_BLOQUEO, UserRole } from '../user/user.enum';
 
 @ApiTags('Email')
 @Controller('email')
@@ -38,6 +39,7 @@ export class EmailController {
     private readonly pdfService: PdfService,
     private readonly cartService: CartService,
     private readonly pricingService: PricingService,
+    private readonly userService: UserService,
   ) {}
 
   @Post('send-order')
@@ -62,8 +64,15 @@ export class EmailController {
   ): Promise<{ message: string; orderId: string; presupuestoNumber: string; pdfBase64: string }> {
     this.logger.log(`Recibido pedido de ${partialOrderData.contactInfo.fullName}`);
 
+    // Estado actual de la cuenta desde la BD: el JWT puede estar viejo (la
+    // categoría y el freno se cambian desde el panel sin re-loguear al cliente).
+    const cuenta = await this.userService.findOne(req.user.id);
+    if (cuenta.bloqueo) {
+      throw new ForbiddenException(MENSAJE_BLOQUEO[cuenta.bloqueo]);
+    }
+
     // Sólo las categorías B2B pueden comprar (Kansaco no vende minorista).
-    const rol = req.user.rol;
+    const rol = cuenta.rol;
     if (!esCategoriaB2B(rol)) {
       throw new ForbiddenException(
         'Tu cuenta no tiene una categoría comercial habilitada para realizar pedidos.',
