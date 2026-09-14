@@ -16,6 +16,7 @@ import { UserLogin } from './dto/userLogin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangeRoleDto } from './dto/change-role.dto';
+import { ChangeBloqueoDto } from './dto/change-bloqueo.dto';
 import { AuthGuard } from '../guards/auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -44,8 +45,10 @@ export class UserController {
     }
   }
 
+  // Listado completo (mail, teléfono, dirección de todos): sólo el staff.
   @Get()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @ApiBearerAuth('access-token')
   async findAll() {
     return this.userService.findAll();
@@ -73,7 +76,11 @@ export class UserController {
     @Request() req: { user: { id: string } },
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.userService.update(req.user.id, updateUserDto);
+    // El rol sólo lo cambia el admin (PATCH /:id/rol). Sin esto, cualquier
+    // cliente podía hacerse ADMIN mandando { rol } acá.
+    const safe: UpdateUserDto = { ...updateUserDto };
+    delete safe.rol;
+    return this.userService.update(req.user.id, safe);
   }
 
   @Patch('/:id/rol')
@@ -88,22 +95,40 @@ export class UserController {
     return this.userService.changeRole(id, changeRoleDto.rol);
   }
 
+  @Patch('/:id/bloqueo')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary:
+      'Frenar (COBRANZAS | VENTAS) o destrabar (null) una cuenta de cliente. ADMIN y ASISTENTE.',
+  })
+  async changeBloqueo(@Param('id') id: string, @Body() dto: ChangeBloqueoDto) {
+    return this.userService.changeBloqueo(id, dto.bloqueo);
+  }
+
+  // Operar sobre OTRA cuenta por id: sólo ADMIN. Antes alcanzaba con estar
+  // logueado, así que cualquier cliente podía leer, editar (incluso el rol) o
+  // borrar a cualquier otro usuario.
   @Get('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async getUser(@Param('id') id: string) {
     return this.userService.findOne(id);
   }
 
   @Put('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.update(id, updateUserDto);
   }
 
   @Delete('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async remove(@Param('id') id: string) {
     return this.userService.remove(id);

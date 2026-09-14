@@ -7,7 +7,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { UserRole } from './user.enum';
+import { UserBloqueo, UserRole } from './user.enum';
 import { Cart } from '../cart/cart.entity';
 import { Discount } from '../discount/discount.entity';
 
@@ -87,6 +87,18 @@ export class User {
     enumName: 'user_role',
   })
   rol: UserRole;
+
+  /**
+   * Cuenta frenada por cobranzas o ventas: conserva su categoría (y su lista
+   * de precios) pero no puede comprar hasta que la destraben. null = operativa.
+   */
+  @Column({
+    type: 'enum',
+    nullable: true,
+    enum: UserBloqueo,
+    enumName: 'user_bloqueo',
+  })
+  bloqueo: UserBloqueo | null;
 
   @ManyToMany(() => Discount, (discount) => discount.clientes)
   @JoinTable({
