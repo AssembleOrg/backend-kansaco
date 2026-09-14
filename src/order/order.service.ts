@@ -30,6 +30,7 @@ export class OrderService {
       status: OrderStatus.PENDIENTE,
       contactInfo: orderData.contactInfo,
       businessInfo: orderData.businessInfo,
+      shippingInfo: orderData.shippingInfo,
       items: orderData.items,
       totalAmount: orderData.totalAmount,
       notes: orderData.notes,
