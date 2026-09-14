@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
 import { SendOrderEmailDto, CustomerType } from './dto/send-order-email.dto';
+import { formatDireccion, modalidadLabel } from '../order/shipping.util';
 
 @Injectable()
 export class EmailService {
@@ -125,6 +126,22 @@ export class EmailService {
       `;
     }
 
+    let shippingInfoHtml = '';
+    if (orderData.shippingInfo) {
+      const s = orderData.shippingInfo;
+      const despacho = formatDireccion(s.despacho);
+      const entrega = formatDireccion(s.entrega);
+      shippingInfoHtml = `
+        <div style="margin-bottom: 20px; padding: 15px; background-color: #f0fdf4; border-radius: 8px;">
+          <h3 style="color: #16a245; margin-bottom: 10px;">Logística de Envío</h3>
+          <p><strong>Modalidad:</strong> ${modalidadLabel(s.modalidad)}</p>
+          ${despacho ? `<p><strong>Dirección de Despacho:</strong> ${despacho}</p>` : ''}
+          ${s.transporte ? `<p><strong>Empresa de Transporte:</strong> ${s.transporte}</p>` : ''}
+          ${entrega ? `<p><strong>Dirección de Entrega:</strong> ${entrega}</p>` : ''}
+        </div>
+      `;
+    }
+
     return `
       <!DOCTYPE html>
       <html>
@@ -149,6 +166,8 @@ export class EmailService {
             <p><strong>Teléfono:</strong> ${orderData.contactInfo.phone}</p>
             <p><strong>Dirección:</strong> ${orderData.contactInfo.address}</p>
           </div>
+
+          ${shippingInfoHtml}
 
           ${businessInfoHtml}
 

@@ -17,6 +17,7 @@ import { EmailService } from './email.service';
 import { SendOrderEmailDto, OrderItemDto } from './dto/send-order-email.dto';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { OrderService } from '../order/order.service';
+import { formatDireccion, modalidadLabel } from '../order/shipping.util';
 import { RabbitmqClientService } from '../rabbitmq/rabbitmq-client.service';
 import { ConfigService } from '@nestjs/config';
 import { CustomerType } from './dto/send-order-email.dto';
@@ -223,6 +224,18 @@ DATOS FISCALES:
 `;
     }
 
+    let shippingText = '';
+    if (orderData.shippingInfo) {
+      const s = orderData.shippingInfo;
+      const despacho = formatDireccion(s.despacho);
+      const entrega = formatDireccion(s.entrega);
+      shippingText = `
+LOGÍSTICA DE ENVÍO:
+  Modalidad: ${modalidadLabel(s.modalidad)}
+  ${despacho ? `Dirección de Despacho: ${despacho}\n  ` : ''}${s.transporte ? `Empresa de Transporte: ${s.transporte}\n  ` : ''}${entrega ? `Dirección de Entrega: ${entrega}` : ''}
+`;
+    }
+
     return `
 NUEVO PEDIDO WEB
 
@@ -233,7 +246,7 @@ DATOS DE CONTACTO:
   Email: ${orderData.contactInfo.email}
   Teléfono: ${orderData.contactInfo.phone}
   Dirección: ${orderData.contactInfo.address}
-
+${shippingText}
 ${businessInfoText}
 PRODUCTOS:
 ${itemsText}

@@ -5,8 +5,22 @@ import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { PresupuestoData, PresupuestoProducto } from './presupuesto.types';
-import { Order } from '../order/order.entity';
+import { Order, OrderShippingInfo } from '../order/order.entity';
+import { formatDireccion, modalidadLabel } from '../order/shipping.util';
 const sharp = require('sharp');
+
+/** Arma el bloque de envío del presupuesto desde la modalidad de la orden. */
+function buildEnvioPresupuesto(
+  shipping?: OrderShippingInfo,
+): PresupuestoData['envio'] {
+  if (!shipping) return undefined;
+  return {
+    modalidad: modalidadLabel(shipping.modalidad),
+    entrega: formatDireccion(shipping.entrega),
+    despacho: formatDireccion(shipping.despacho),
+    transporte: shipping.transporte?.trim() || undefined,
+  };
+}
 
 @Injectable()
 export class PdfService {
@@ -71,6 +85,7 @@ export class PdfService {
       customerType: order.customerType,
       contactInfo: order.contactInfo,
       businessInfo: order.businessInfo,
+      shippingInfo: order.shippingInfo as SendOrderEmailDto['shippingInfo'],
       items: order.items.map((item) => ({
         productId: item.productId,
         productName: item.productName,
@@ -241,6 +256,7 @@ export class PdfService {
       orderData.businessInfo?.codigoPostal || 'CABA, Buenos Aires';
 
     return {
+      envio: buildEnvioPresupuesto(orderData.shippingInfo),
       empresa: {
         nombre: 'Kansaco Petroquimica S.A',
         cuit: '30-58610901-0',
