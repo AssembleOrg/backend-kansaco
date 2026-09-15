@@ -83,9 +83,11 @@ export class CreateUserDto {
   telefono: string;
 
   @ApiProperty({
-    description: 'User Role',
+    description:
+      'User Role. Ignored on public registration (always CLIENTE_MINORISTA); only admins can change roles via PUT /user/:id',
     enum: UserRole,
     default: UserRole.CLIENTE_MINORISTA,
+    required: false,
   })
   @IsEnum(UserRole)
   @IsOptional()

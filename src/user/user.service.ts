@@ -17,6 +17,7 @@ import { Cart } from 'src/cart/cart.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { nowAsDate } from 'src/helpers/date.helper';
 import { AnalyticsService } from '../analytics/analytics.service';
 
@@ -35,6 +36,8 @@ export class UserService {
   ) {}
 
   async create(createUserDto: CreateUserDto) {
+    // `rol` is intentionally ignored: public registration always creates a
+    // CLIENTE_MINORISTA. Roles are changed only by admins (PATCH /user/:id/rol).
     const {
       email,
       password,
@@ -45,7 +48,6 @@ export class UserService {
       provincia,
       codigoPostal,
       telefono,
-      rol,
     } = createUserDto;
 
     validateUser(email, password, nombre, apellido);
@@ -70,7 +72,7 @@ export class UserService {
       provincia: provincia?.trim(),
       codigoPostal: codigoPostal?.trim(),
       telefono,
-      rol: rol || UserRole.CLIENTE_MINORISTA,
+      rol: UserRole.CLIENTE_MINORISTA,
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -140,6 +142,29 @@ export class UserService {
 
     await this.userRepository.update(id, updateUserDto);
     return this.findOne(id);
+  }
+
+  async updateProfile(id: string, updateProfileDto: UpdateProfileDto) {
+    const { currentPassword, ...changes } = updateProfileDto;
+
+    if (changes.email || changes.password) {
+      const user = await this.userRepository.findOne({ where: { id } });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const isPasswordValid =
+        !!currentPassword &&
+        (await this.authService.comparePassword(
+          currentPassword,
+          user.password,
+        ));
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Contraseña actual incorrecta');
+      }
+    }
+
+    return this.update(id, changes);
   }
 
   /** Cambia la categoría/rol de un usuario. Usado por admin para "aprobar" cuentas B2B. */

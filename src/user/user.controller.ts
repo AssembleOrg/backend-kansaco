@@ -15,6 +15,7 @@ import { UserService } from './user.service';
 import { UserLogin } from './dto/userLogin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangeRoleDto } from './dto/change-role.dto';
 import { ChangeBloqueoDto } from './dto/change-bloqueo.dto';
 import { AuthGuard } from '../guards/auth.guard';
@@ -74,13 +75,11 @@ export class UserController {
   @ApiResponse({ status: 409, description: 'Email ya en uso' })
   async updateMyProfile(
     @Request() req: { user: { id: string } },
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() updateProfileDto: UpdateProfileDto,
   ) {
-    // El rol sólo lo cambia el admin (PATCH /:id/rol). Sin esto, cualquier
-    // cliente podía hacerse ADMIN mandando { rol } acá.
-    const safe: UpdateUserDto = { ...updateUserDto };
-    delete safe.rol;
-    return this.userService.update(req.user.id, safe);
+    // UpdateProfileDto no incluye `rol` (sólo lo cambia el admin vía
+    // PATCH /:id/rol) y exige la contraseña actual para cambiar email/password.
+    return this.userService.updateProfile(req.user.id, updateProfileDto);
   }
 
   @Patch('/:id/rol')
