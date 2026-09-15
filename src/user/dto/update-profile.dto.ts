@@ -53,6 +53,25 @@ export class UpdateProfileDto {
   @IsString()
   direccion?: string;
 
+  @ApiProperty({ description: 'User Locality', type: String, required: false })
+  @IsOptional()
+  @IsString()
+  localidad?: string;
+
+  @ApiProperty({ description: 'User Province', type: String, required: false })
+  @IsOptional()
+  @IsString()
+  provincia?: string;
+
+  @ApiProperty({
+    description: 'User Postal Code',
+    type: String,
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  codigoPostal?: string;
+
   @ApiProperty({ description: 'User Phone', type: String, required: false })
   @IsOptional()
   @IsNotEmpty({ message: 'Telefono should not be empty' })

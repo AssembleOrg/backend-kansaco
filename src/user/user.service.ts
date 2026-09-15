@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -10,7 +11,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { ILike, Repository } from 'typeorm';
-import { UserRole } from './user.enum';
+import { UserBloqueo, UserRole } from './user.enum';
 import { validateUser } from 'src/helpers/user.helper';
 import { Cart } from 'src/cart/cart.entity';
 import { AuthService } from 'src/auth/auth.service';
@@ -36,9 +37,18 @@ export class UserService {
 
   async create(createUserDto: CreateUserDto) {
     // `rol` is intentionally ignored: public registration always creates a
-    // CLIENTE_MINORISTA. Roles are changed only by admins via update().
-    const { email, password, nombre, apellido, direccion, telefono } =
-      createUserDto;
+    // CLIENTE_MINORISTA. Roles are changed only by admins (PATCH /user/:id/rol).
+    const {
+      email,
+      password,
+      nombre,
+      apellido,
+      direccion,
+      localidad,
+      provincia,
+      codigoPostal,
+      telefono,
+    } = createUserDto;
 
     validateUser(email, password, nombre, apellido);
 
@@ -57,7 +67,10 @@ export class UserService {
       password: hashedPassword,
       nombre,
       apellido,
-      direccion,
+      direccion: direccion?.trim(),
+      localidad: localidad?.trim(),
+      provincia: provincia?.trim(),
+      codigoPostal: codigoPostal?.trim(),
       telefono,
       rol: UserRole.CLIENTE_MINORISTA,
     });
@@ -152,6 +165,28 @@ export class UserService {
     }
 
     return this.update(id, changes);
+  }
+
+  /** Cambia la categoría/rol de un usuario. Usado por admin para "aprobar" cuentas B2B. */
+  async changeRole(id: string, rol: UserRole) {
+    await this.findOne(id); // valida existencia (lanza 404 si no existe)
+    await this.userRepository.update(id, { rol });
+    return this.findOne(id);
+  }
+
+  /**
+   * Frena (con motivo) o destraba (null) una cuenta de cliente. No toca la
+   * categoría: al destrabar vuelve a operar con su misma lista de precios.
+   */
+  async changeBloqueo(id: string, bloqueo: UserBloqueo | null) {
+    const user = await this.findOne(id);
+    if (user.rol === UserRole.ADMIN || user.rol === UserRole.ASISTENTE) {
+      throw new BadRequestException(
+        'Sólo se pueden frenar cuentas de clientes',
+      );
+    }
+    await this.userRepository.update(id, { bloqueo });
+    return this.findOne(id);
   }
 
   async remove(id: string) {

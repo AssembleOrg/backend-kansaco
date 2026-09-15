@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, ILike } from 'typeorm';
 import { UserEvent } from './user-event.entity';
 import { User } from '../user/user.entity';
+import { UserRole, B2B_ROLES } from '../user/user.enum';
 import { Order } from '../order/order.entity';
 import { DateTime } from 'luxon';
 import { nowAsDate } from '../helpers/date.helper';
@@ -244,6 +245,40 @@ export class AnalyticsService {
       hasNext: page < totalPages,
       hasPrev: page > 1,
     };
+  }
+
+  /**
+   * Agrupa los usuarios registrados por provincia (y opcionalmente localidad)
+   * para el analytics de zonas. Base para un futuro mapa de distribución.
+   * Los usuarios sin provincia se agrupan como 'Sin especificar'.
+   */
+  async getUsersByZone() {
+    // 'Habilitados' = categorías B2B que operan; 'Pendientes' = MINORISTA
+    // (sin categoría). ADMIN/ASISTENTE son sistema y no cuentan como pendientes.
+    const enabledRoles = B2B_ROLES.map((r) => `'${r}'`).join(', ');
+    const rows = await this.userRepo
+      .createQueryBuilder('user')
+      .select("COALESCE(NULLIF(TRIM(user.provincia), ''), 'Sin especificar')", 'provincia')
+      .addSelect('COUNT(*)', 'total')
+      .addSelect(
+        `COUNT(*) FILTER (WHERE user.rol IN (${enabledRoles}))`,
+        'enabled',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE user.rol = '${UserRole.CLIENTE_MINORISTA}')`,
+        'pending',
+      )
+      .groupBy("COALESCE(NULLIF(TRIM(user.provincia), ''), 'Sin especificar')")
+      .orderBy('total', 'DESC')
+      .getRawMany();
+
+    return rows.map((r) => ({
+      provincia: r.provincia,
+      count: parseInt(r.total, 10), // compat: 'count' = total
+      total: parseInt(r.total, 10),
+      enabled: parseInt(r.enabled, 10),
+      pending: parseInt(r.pending, 10),
+    }));
   }
 
   async getProductRanking(options: {

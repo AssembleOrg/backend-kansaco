@@ -26,6 +26,13 @@ export interface PresupuestoData {
     email: string;
     localidad: string;
   };
+  /** Logística de envío (MÓDULO 3). Ausente en órdenes previas. */
+  envio?: {
+    modalidad: string; // etiqueta legible, p.ej. "Expreso / Larga distancia"
+    entrega?: string; // dirección de entrega formateada
+    despacho?: string; // dirección de despacho formateada
+    transporte?: string; // empresa de transporte
+  };
   productos: PresupuestoProducto[];
   condiciones: {
     formaPago: string;

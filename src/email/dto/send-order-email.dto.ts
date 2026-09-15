@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsArray, IsNumber, IsOptional, IsEnum, ValidateNested } from 'class-validator';
+import { IsString, IsEmail, IsArray, IsNumber, IsOptional, IsEnum, ValidateNested, ValidateIf, IsNotEmpty } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,6 +18,21 @@ export class ContactInfoDto {
   @ApiProperty({ description: 'Dirección de envío' })
   @IsString()
   address: string;
+
+  @ApiPropertyOptional({ description: 'Localidad del cliente' })
+  @IsString()
+  @IsOptional()
+  localidad?: string;
+
+  @ApiPropertyOptional({ description: 'Provincia del cliente' })
+  @IsString()
+  @IsOptional()
+  provincia?: string;
+
+  @ApiPropertyOptional({ description: 'Código postal del cliente' })
+  @IsString()
+  @IsOptional()
+  codigoPostal?: string;
 }
 
 export class BusinessInfoDto {
@@ -73,6 +88,68 @@ export enum CustomerType {
   MAYORISTA = 'CLIENTE_MAYORISTA',
 }
 
+// ---- Logística de envío (MÓDULO 3) ----
+export enum ModalidadEnvio {
+  RETIRO = 'RETIRO',
+  FLETE = 'FLETE',
+  EXPRESO = 'EXPRESO',
+}
+
+export class DireccionDto {
+  @ApiProperty({ description: 'Calle y número' })
+  @IsString()
+  @IsNotEmpty({ message: 'La calle es obligatoria' })
+  calle: string;
+
+  @ApiPropertyOptional({ description: 'Localidad' })
+  @IsString()
+  @IsOptional()
+  localidad?: string;
+
+  @ApiPropertyOptional({ description: 'Provincia' })
+  @IsString()
+  @IsOptional()
+  provincia?: string;
+
+  @ApiPropertyOptional({ description: 'Código postal' })
+  @IsString()
+  @IsOptional()
+  codigoPostal?: string;
+}
+
+/**
+ * Modalidad logística. La validación condicional es el corte real de servidor:
+ * el front puede fallar, esto no. FLETE exige entrega; EXPRESO exige despacho +
+ * entrega + transporte; RETIRO no exige direcciones.
+ */
+export class ShippingInfoDto {
+  @ApiProperty({ enum: ModalidadEnvio, description: 'Modalidad de envío elegida' })
+  @IsEnum(ModalidadEnvio)
+  modalidad: ModalidadEnvio;
+
+  @ApiPropertyOptional({ type: DireccionDto, description: 'Dirección de entrega (FLETE y EXPRESO)' })
+  @ValidateIf(
+    (dto: ShippingInfoDto) =>
+      dto.modalidad === ModalidadEnvio.FLETE ||
+      dto.modalidad === ModalidadEnvio.EXPRESO,
+  )
+  @ValidateNested()
+  @Type(() => DireccionDto)
+  entrega?: DireccionDto;
+
+  @ApiPropertyOptional({ type: DireccionDto, description: 'Dirección de despacho / depósito del expreso (EXPRESO)' })
+  @ValidateIf((dto: ShippingInfoDto) => dto.modalidad === ModalidadEnvio.EXPRESO)
+  @ValidateNested()
+  @Type(() => DireccionDto)
+  despacho?: DireccionDto;
+
+  @ApiPropertyOptional({ description: 'Empresa de transporte (EXPRESO)' })
+  @ValidateIf((dto: ShippingInfoDto) => dto.modalidad === ModalidadEnvio.EXPRESO)
+  @IsString()
+  @IsNotEmpty({ message: 'La empresa de transporte es obligatoria para envío por expreso' })
+  transporte?: string;
+}
+
 export class SendOrderEmailDto {
   @ApiProperty({
     description: 'Tipo de cliente',
@@ -91,6 +168,12 @@ export class SendOrderEmailDto {
   @Type(() => BusinessInfoDto)
   @IsOptional()
   businessInfo?: BusinessInfoDto;
+
+  @ApiPropertyOptional({ description: 'Modalidad y direcciones de envío' })
+  @ValidateNested()
+  @Type(() => ShippingInfoDto)
+  @IsOptional()
+  shippingInfo?: ShippingInfoDto;
 
   @ApiProperty({ description: 'Items del pedido', type: [OrderItemDto] })
   @IsArray()

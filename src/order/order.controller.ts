@@ -283,13 +283,14 @@ export class OrderController {
   @ApiResponse({ status: 403, description: 'No autorizado para ver esta orden' })
   async findOne(
     @Param('id') id: string,
-    @Request() req: { user: { id: string; role: UserRole } },
+    @Request() req: { user: { id: string; rol: UserRole } },
   ): Promise<{ status: string; data: Order }> {
     const order = await this.orderService.findOne(id);
 
     // Verificar ownership: el usuario debe ser dueño de la orden o ser Admin/Asistente
+    // Nota: el AuthGuard setea req.user.rol (español), no .role.
     const isOwner = order.userId === req.user.id;
-    const isAdminOrAsistente = req.user.role === UserRole.ADMIN || req.user.role === UserRole.ASISTENTE;
+    const isAdminOrAsistente = req.user.rol === UserRole.ADMIN || req.user.rol === UserRole.ASISTENTE;
 
     if (!isOwner && !isAdminOrAsistente) {
       throw new ForbiddenException('No tienes permiso para ver esta orden');
@@ -313,7 +314,10 @@ export class OrderController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar una orden (solo PENDIENTE)' })
+  @ApiOperation({
+    summary:
+      'Actualizar una orden (solo PENDIENTE; el staff puede editar solo notas en cualquier estado)',
+  })
   @ApiResponse({ status: 200, description: 'Orden actualizada correctamente' })
   @ApiResponse({ status: 403, description: 'No autorizado para editar esta orden' })
   @ApiResponse({ status: 400, description: 'Orden no puede ser editada (no está PENDIENTE)' })

@@ -11,6 +11,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { ImageModule } from '../image/image.module';
 import { CategoryModule } from '../category/category.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     forwardRef(() => ImageModule),
     CategoryModule,
     AnalyticsModule,
+    PricingModule,
   ],
   controllers: [ProductoController],
   providers: [ProductoService, AuthGuard, RolesGuard],

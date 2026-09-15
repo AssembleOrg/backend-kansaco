@@ -5,6 +5,7 @@ import {
   Get,
   Logger,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -15,6 +16,8 @@ import { UserLogin } from './dto/userLogin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangeRoleDto } from './dto/change-role.dto';
+import { ChangeBloqueoDto } from './dto/change-bloqueo.dto';
 import { AuthGuard } from '../guards/auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -43,9 +46,10 @@ export class UserController {
     }
   }
 
+  // Listado completo (mail, teléfono, dirección de todos): sólo el staff.
   @Get()
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @ApiBearerAuth('access-token')
   async findAll() {
     return this.userService.findAll();
@@ -73,9 +77,38 @@ export class UserController {
     @Request() req: { user: { id: string } },
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
+    // UpdateProfileDto no incluye `rol` (sólo lo cambia el admin vía
+    // PATCH /:id/rol) y exige la contraseña actual para cambiar email/password.
     return this.userService.updateProfile(req.user.id, updateProfileDto);
   }
 
+  @Patch('/:id/rol')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Cambiar la categoría/rol de un usuario (solo ADMIN)' })
+  async changeRole(
+    @Param('id') id: string,
+    @Body() changeRoleDto: ChangeRoleDto,
+  ) {
+    return this.userService.changeRole(id, changeRoleDto.rol);
+  }
+
+  @Patch('/:id/bloqueo')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary:
+      'Frenar (COBRANZAS | VENTAS) o destrabar (null) una cuenta de cliente. ADMIN y ASISTENTE.',
+  })
+  async changeBloqueo(@Param('id') id: string, @Body() dto: ChangeBloqueoDto) {
+    return this.userService.changeBloqueo(id, dto.bloqueo);
+  }
+
+  // Operar sobre OTRA cuenta por id: sólo ADMIN. Antes alcanzaba con estar
+  // logueado, así que cualquier cliente podía leer, editar (incluso el rol) o
+  // borrar a cualquier otro usuario.
   @Get('/:id')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

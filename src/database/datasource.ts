@@ -31,6 +31,8 @@ export default new DataSource({
     path.join(__dirname, '..', 'pipeline-stage', '**', '*.entity{.ts,.js}'),
     path.join(__dirname, '..', 'deal', '**', '*.entity{.ts,.js}'),
     path.join(__dirname, '..', 'quote', '**', '*.entity{.ts,.js}'),
+    path.join(__dirname, '..', 'pricing', '**', '*.entity{.ts,.js}'),
+    path.join(__dirname, '..', 'submission', '**', '*.entity{.ts,.js}'),
   ],
   synchronize: false,
   logging: false,

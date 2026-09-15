@@ -1,5 +1,5 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsNumber, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { ProductImageResponse } from './product-image-response.dto';
 import { CategoryResponseDto } from '../../category/dto/category-response.dto';
 
@@ -35,11 +35,14 @@ export class ProductResponse {
   categories?: CategoryResponseDto[];
 
   @ApiProperty({
-    description: 'Product Price',
+    description:
+      'Precio final para el rol del usuario. null cuando el usuario no es una categoría B2B (anónimo, pendiente/minorista, admin/asistente): no ve precio.',
     type: Number,
+    nullable: true,
   })
+  @IsOptional()
   @IsNumber()
-  price: number;
+  price: number | null;
 
   @ApiProperty({
     description: 'Product Description',

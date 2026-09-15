@@ -16,6 +16,9 @@ export interface OrderContactInfo {
   email: string;
   phone: string;
   address: string;
+  localidad?: string;
+  provincia?: string;
+  codigoPostal?: string;
 }
 
 export interface OrderBusinessInfo {
@@ -31,6 +34,23 @@ export interface OrderItemData {
   quantity: number;
   unitPrice?: number;
   presentation?: string;
+}
+
+// Logística de envío (MÓDULO 3). Se guarda dentro del JSONB de la orden.
+export type ModalidadEnvio = 'RETIRO' | 'FLETE' | 'EXPRESO';
+
+export interface OrderDireccion {
+  calle: string;
+  localidad?: string;
+  provincia?: string;
+  codigoPostal?: string;
+}
+
+export interface OrderShippingInfo {
+  modalidad: ModalidadEnvio;
+  entrega?: OrderDireccion;
+  despacho?: OrderDireccion;
+  transporte?: string;
 }
 
 @Entity('order')
@@ -61,6 +81,9 @@ export class Order {
 
   @Column({ type: 'jsonb', nullable: true })
   businessInfo?: OrderBusinessInfo;
+
+  @Column({ type: 'jsonb', nullable: true })
+  shippingInfo?: OrderShippingInfo;
 
   @Column({ type: 'jsonb' })
   items: OrderItemData[];

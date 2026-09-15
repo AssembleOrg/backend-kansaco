@@ -1,18 +1,26 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Order } from './order.entity';
 import { OrderStatus } from './order.enum';
-import { SendOrderEmailDto } from '../email/dto/send-order-email.dto';
+import { OrderItemDto, SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { UserRole } from '../user/user.enum';
+import { esCategoriaB2B, UserRole } from '../user/user.enum';
 import { OrderItemData } from './order.entity';
+import { Product } from '../product/product.entity';
+import { User } from '../user/user.entity';
+import { PricingService } from '../pricing/pricing.service';
 
 @Injectable()
 export class OrderService {
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    private readonly pricingService: PricingService,
   ) {}
 
   async create(userId: string, orderData: SendOrderEmailDto): Promise<Order> {
@@ -22,6 +30,7 @@ export class OrderService {
       status: OrderStatus.PENDIENTE,
       contactInfo: orderData.contactInfo,
       businessInfo: orderData.businessInfo,
+      shippingInfo: orderData.shippingInfo,
       items: orderData.items,
       totalAmount: orderData.totalAmount,
       notes: orderData.notes,
@@ -133,9 +142,12 @@ export class OrderService {
   ): Promise<Order> {
     const order = await this.findOne(id);
 
+    const isStaff =
+      userRole === UserRole.ADMIN || userRole === UserRole.ASISTENTE;
+
     // Validación 1: Verificar propiedad de la orden
     // Si no es ADMIN/ASISTENTE, solo puede editar sus propias órdenes
-    if (userRole !== UserRole.ADMIN && userRole !== UserRole.ASISTENTE) {
+    if (!isStaff) {
       if (order.userId !== userId) {
         throw new ForbiddenException(
           'No tienes permisos para editar esta orden',
@@ -143,8 +155,19 @@ export class OrderService {
       }
     }
 
+    // El staff (ADMIN/ASISTENTE) puede editar SOLO las notas en cualquier estado
+    // (p. ej. registrar el motivo de una cancelación). El resto de campos y
+    // cualquier edición de un cliente siguen restringidos a órdenes PENDIENTE.
+    const onlyEditsNotes =
+      updateData.notes !== undefined &&
+      updateData.contactInfo === undefined &&
+      updateData.businessInfo === undefined &&
+      updateData.items === undefined;
+
+    const canEditNotesAnyStatus = isStaff && onlyEditsNotes;
+
     // Validación 2: Solo se pueden editar órdenes PENDIENTE
-    if (order.status !== OrderStatus.PENDIENTE) {
+    if (order.status !== OrderStatus.PENDIENTE && !canEditNotesAnyStatus) {
       throw new BadRequestException(
         `No se pueden modificar órdenes con estado ${order.status}. Solo las órdenes PENDIENTE pueden ser editadas.`,
       );
@@ -160,9 +183,9 @@ export class OrderService {
     }
 
     if (updateData.items) {
-      order.items = updateData.items;
+      order.items = await this.pricedItems(order, updateData.items);
       // Recalcular total si se modificaron items
-      order.totalAmount = this.calculateTotal(updateData.items);
+      order.totalAmount = this.calculateTotal(order.items);
     }
 
     if (updateData.notes !== undefined) {
@@ -170,6 +193,75 @@ export class OrderService {
     }
 
     return this.orderRepository.save(order);
+  }
+
+  /**
+   * Igual que el checkout (EmailController.sendOrderEmail): el precio unitario
+   * se recalcula acá a partir del precio base del producto y la lista del
+   * dueño del pedido. Se ignora el unitPrice que manda el front: para el staff
+   * es el precio base sin recargo (le pisaría la lista al cliente) y para un
+   * cliente sería manipulable. Nombre del producto: el de la BD.
+   */
+  private async pricedItems(
+    order: Order,
+    items: OrderItemDto[],
+  ): Promise<OrderItemData[]> {
+    if (items.length === 0) {
+      throw new BadRequestException('El pedido debe tener al menos un producto');
+    }
+    const invalid = items.find(
+      (item) => !Number.isInteger(item.quantity) || item.quantity < 1,
+    );
+    if (invalid) {
+      throw new BadRequestException(
+        `Cantidad inválida para el producto ${invalid.productId}`,
+      );
+    }
+
+    const ids = [...new Set(items.map((item) => item.productId))];
+    const products = await this.productRepository.find({
+      where: { id: In(ids) },
+      select: ['id', 'name', 'price'],
+    });
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const missing = ids.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Productos inexistentes: ${missing.join(', ')}`,
+      );
+    }
+
+    // Lista de precios del dueño del pedido (no del que edita).
+    const owner = await this.userRepository.findOne({
+      where: { id: order.userId },
+      select: ['id', 'rol'],
+    });
+    const rol = owner?.rol ?? null;
+    const percentage = esCategoriaB2B(rol)
+      ? await this.pricingService.getPercentage(rol)
+      : 0;
+
+    // Si el dueño ya no tiene lista (perdió la categoría B2B), se conserva el
+    // precio que ya tenía cada ítem en vez de pisar el total con 0.
+    const previous = new Map(
+      order.items.map((item) => [item.productId, item.unitPrice]),
+    );
+
+    return items.map((item) => {
+      const product = byId.get(item.productId)!;
+      const unitPrice = this.pricingService.applyRolePricing(
+        Number(product.price),
+        rol,
+        percentage,
+      );
+      return {
+        productId: product.id,
+        productName: product.name,
+        quantity: item.quantity,
+        unitPrice: unitPrice ?? previous.get(item.productId),
+        presentation: item.presentation,
+      };
+    });
   }
 
   private calculateTotal(items: OrderItemData[]): number {
