@@ -14,7 +14,11 @@ import { UserService } from './user.service';
 import { UserLogin } from './dto/userLogin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AuthGuard } from '../guards/auth.guard';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { UserRole } from './user.enum';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('users')
@@ -40,7 +44,8 @@ export class UserController {
   }
 
   @Get()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async findAll() {
     return this.userService.findAll();
@@ -66,27 +71,30 @@ export class UserController {
   @ApiResponse({ status: 409, description: 'Email ya en uso' })
   async updateMyProfile(
     @Request() req: { user: { id: string } },
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() updateProfileDto: UpdateProfileDto,
   ) {
-    return this.userService.update(req.user.id, updateUserDto);
+    return this.userService.updateProfile(req.user.id, updateProfileDto);
   }
 
   @Get('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async getUser(@Param('id') id: string) {
     return this.userService.findOne(id);
   }
 
   @Put('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.update(id, updateUserDto);
   }
 
   @Delete('/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('access-token')
   async remove(@Param('id') id: string) {
     return this.userService.remove(id);
