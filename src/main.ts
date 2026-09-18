@@ -11,7 +11,7 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 // middlewares de seguridad
 import helmet from 'helmet';
-import compression from 'compression';
+import * as compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import * as hpp from 'hpp';
 
