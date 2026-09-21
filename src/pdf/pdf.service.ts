@@ -138,33 +138,39 @@ export class PdfService {
       }
 
       const browser = await puppeteer.launch(launchOptions);
-      const page = await browser.newPage();
+      // finally: si setContent/pdf tiran (timeout, HTML roto), sin esto el
+      // proceso de Chromium queda huérfano (~100MB+ c/u) hasta el próximo deploy.
+      try {
+        const page = await browser.newPage();
 
-      await page.setViewport({
-        width: 794,
-        height: 1123,
-      });
+        await page.setViewport({
+          width: 794,
+          height: 1123,
+        });
 
-      await page.setContent(html, {
-        waitUntil: 'load',
-        timeout: 30000,
-      });
+        await page.setContent(html, {
+          waitUntil: 'load',
+          timeout: 30000,
+        });
 
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '10mm',
-          right: '10mm',
-          bottom: '10mm',
-          left: '10mm',
-        },
-      });
+        const pdf = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: {
+            top: '10mm',
+            right: '10mm',
+            bottom: '10mm',
+            left: '10mm',
+          },
+        });
 
-      await browser.close();
-
-      this.logger.log(`PDF generado: ${data.presupuesto.numero}`);
-      return Buffer.from(pdf);
+        this.logger.log(`PDF generado: ${data.presupuesto.numero}`);
+        return Buffer.from(pdf);
+      } finally {
+        await browser.close().catch((closeError: any) =>
+          this.logger.warn(`Error cerrando Chromium: ${closeError.message}`),
+        );
+      }
     } catch (error: any) {
       this.logger.error(`Error generando PDF: ${error.message}`, error.stack);
       throw error;
