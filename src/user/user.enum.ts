@@ -6,6 +6,7 @@ export enum UserRole {
   SUBMAYORISTA = 'SUBMAYORISTA',
   REVENDEDOR = 'REVENDEDOR',
   TALLER = 'TALLER',
+  LUBRICENTRO = 'LUBRICENTRO',
 }
 
 /**
@@ -18,6 +19,7 @@ export const B2B_ROLES: readonly UserRole[] = [
   UserRole.SUBMAYORISTA,
   UserRole.REVENDEDOR,
   UserRole.TALLER,
+  UserRole.LUBRICENTRO,
 ];
 
 export const esCategoriaB2B = (rol: UserRole | null | undefined): boolean =>
