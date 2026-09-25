@@ -15,6 +15,7 @@ import {
 import { formatDateSpanish, now } from 'src/helpers/date.helper';
 import { CategoryService } from '../category/category.service';
 import { Category } from '../category/category.entity';
+import { BultoService } from '../bulto/bulto.service';
 
 export type ExportFormat = 'csv' | 'xml' | 'xlsx';
 
@@ -29,6 +30,7 @@ export class ProductoService {
     @Inject(forwardRef(() => CategoryService))
     private readonly categoryService: CategoryService,
     private readonly dataSource: DataSource,
+    private readonly bultoService: BultoService,
   ) {}
 
   /**
@@ -244,6 +246,12 @@ export class ProductoService {
       }
 
       const saved = await repo.save(product);
+
+      // Si cambió el texto de presentación, los bultos de presentaciones que
+      // ya no existen quedarían huérfanos: se borran en la misma transacción.
+      if (body.presentation !== undefined) {
+        await this.bultoService.pruneOrphans(manager, saved.id, saved.presentation);
+      }
 
       return repo.findOne({
         where: { id: saved.id },

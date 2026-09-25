@@ -34,6 +34,8 @@ export interface OrderItemData {
   quantity: number;
   unitPrice?: number;
   presentation?: string;
+  /** Copia de los bultos vigentes al crear/editar el ítem (histórico). */
+  bultos?: { nombre: string; unidades: number }[];
 }
 
 // Logística de envío (MÓDULO 3). Se guarda dentro del JSONB de la orden.

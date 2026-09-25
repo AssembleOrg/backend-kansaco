@@ -48,6 +48,8 @@ import { PricingModule } from './pricing/pricing.module';
 import { RolePricing } from './pricing/role-pricing.entity';
 import { SubmissionModule } from './submission/submission.module';
 import { ContactSubmission } from './submission/submission.entity';
+import { BultoModule } from './bulto/bulto.module';
+import { Bulto, ProductBulto } from './bulto/bulto.entity';
 
 @Module({
   imports: [
@@ -91,6 +93,8 @@ import { ContactSubmission } from './submission/submission.entity';
           QuoteItem,
           RolePricing,
           ContactSubmission,
+          Bulto,
+          ProductBulto,
         ],
         synchronize: false,
       }),
@@ -126,6 +130,7 @@ import { ContactSubmission } from './submission/submission.entity';
     QuoteModule,
     PricingModule,
     SubmissionModule,
+    BultoModule,
   ],
   controllers: [AppController],
   providers: [

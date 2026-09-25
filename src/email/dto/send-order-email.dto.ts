@@ -81,6 +81,13 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   presentation?: string;
+
+  // Solo lectura: lo calcula el backend. Se acepta (y se ignora) para que el
+  // front pueda reenviar los ítems de un pedido tal como los recibió.
+  @ApiPropertyOptional({ description: 'Bultos (calculado por el backend, se ignora)' })
+  @IsOptional()
+  @IsArray()
+  bultos?: { nombre: string; unidades: number }[];
 }
 
 export enum CustomerType {

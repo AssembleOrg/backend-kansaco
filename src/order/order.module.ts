@@ -9,6 +9,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { PdfModule } from '../pdf/pdf.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { BultoModule } from '../bulto/bulto.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PricingModule } from '../pricing/pricing.module';
     UserModule,
     PdfModule,
     PricingModule,
+    BultoModule,
   ],
   controllers: [OrderController],
   providers: [OrderService],

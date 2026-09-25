@@ -10,6 +10,7 @@ import { OrderItemData } from './order.entity';
 import { Product } from '../product/product.entity';
 import { User } from '../user/user.entity';
 import { PricingService } from '../pricing/pricing.service';
+import { BultoService } from '../bulto/bulto.service';
 
 @Injectable()
 export class OrderService {
@@ -21,6 +22,7 @@ export class OrderService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly pricingService: PricingService,
+    private readonly bultoService: BultoService,
   ) {}
 
   async create(userId: string, orderData: SendOrderEmailDto): Promise<Order> {
@@ -247,7 +249,18 @@ export class OrderService {
       order.items.map((item) => [item.productId, item.unitPrice]),
     );
 
+    // Bultos: un ítem que ya estaba en el pedido conserva su copia (histórico);
+    // uno nuevo toma los bultos vigentes del producto + presentación.
+    const previousBultos = new Map(
+      order.items.map((item) => [
+        BultoService.key(item.productId, item.presentation),
+        item.bultos,
+      ]),
+    );
+    const currentBultos = await this.bultoService.snapshotFor(items);
+
     return items.map((item) => {
+      const k = BultoService.key(item.productId, item.presentation);
       const product = byId.get(item.productId)!;
       const unitPrice = this.pricingService.applyRolePricing(
         Number(product.price),
@@ -260,6 +273,7 @@ export class OrderService {
         quantity: item.quantity,
         unitPrice: unitPrice ?? previous.get(item.productId),
         presentation: item.presentation,
+        bultos: previousBultos.get(k) ?? currentBultos.get(k),
       };
     });
   }
