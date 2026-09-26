@@ -54,6 +54,13 @@ const ENVASES: Record<string, string | null> = {
   '0320': null, // 8 kg = 20 x Pote 400 grs
 };
 
+// Productos web con SKU mal cargado: familia Tango -> id del producto web que ya la representa.
+// Evita crearlos duplicados. Si se corrige el SKU en el admin, se puede borrar la entrada.
+const YA_EN_WEB: Record<string, number> = {
+  '2200': 228, // DHL 4 (SKU web "001")
+  '1500': 221, // DHL 1 HD 40 (SKU web "0001")
+};
+
 type Row = {
   codigo: string;
   prefijo: string;
@@ -231,7 +238,8 @@ async function run() {
   for (const [familia, todasFamilia] of familias) {
     const { propias: frs, intrusas: fuera } = separarIntrusos(todasFamilia);
     intrusas.push(...fuera);
-    const matches = webPorFamilia.get(familia);
+    const manual = web.filter((p) => p.id === YA_EN_WEB[familia]);
+    const matches = webPorFamilia.get(familia) ?? (manual.length ? manual : undefined);
     if (matches) {
       for (const p of matches) {
         // Se compara por capacidad: "200L" y "Tambor 200 Litros" son lo mismo.
@@ -279,7 +287,9 @@ async function run() {
   }
 
   const webSinTango = web.filter(
-    (p) => !(p.sku.match(/\d+/g) ?? []).some((n) => familias.has(String(Number(n)))),
+    (p) =>
+      !Object.values(YA_EN_WEB).includes(p.id) &&
+      !(p.sku.match(/\d+/g) ?? []).some((n) => familias.has(String(Number(n)))),
   );
 
   // Bultos: se copia la convención actual. Si la mayoría de los productos con la

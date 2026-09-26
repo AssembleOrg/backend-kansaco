@@ -115,7 +115,7 @@ export class BultoService {
       select: ['id', 'name', 'sku', 'presentation', 'isVisible'],
       order: { name: 'ASC' },
     });
-    const mapa = await this.mapForProducts(products.map((p) => p.id));
+    const mapa = await this.mapForProducts();
     return products.flatMap((p) =>
       splitPresentations(p.presentation).map((presentation) => ({
         productId: p.id,
@@ -200,10 +200,11 @@ export class BultoService {
 
   // ─── Lectura para tienda / pedidos ─────────────────────────────────
 
-  async mapForProducts(productIds: number[]): Promise<BultosPorProducto> {
-    if (productIds.length === 0) return {};
+  /** Sin ids: todas las asignaciones (uso de staff). */
+  async mapForProducts(productIds?: number[]): Promise<BultosPorProducto> {
+    if (productIds?.length === 0) return {};
     const rows = await this.asignacionRepo.find({
-      where: { productId: In(productIds) },
+      where: productIds ? { productId: In(productIds) } : {},
       relations: ['bulto'],
     });
     const out: BultosPorProducto = {};

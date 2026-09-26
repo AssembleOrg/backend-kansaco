@@ -44,6 +44,15 @@ export class BultoController {
     return this.bultoService.list();
   }
 
+  /** Staff: bultos de todo el catálogo en un pedido (el admin filtra por bultos). */
+  @Get('asignaciones')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth()
+  async asignaciones() {
+    return this.bultoService.mapForProducts();
+  }
+
   @Get('presentaciones')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
