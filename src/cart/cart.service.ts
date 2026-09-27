@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cart } from './cart.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { splitPresentations } from '../bulto/bulto.util';
 import { CartItem } from './cartItem.entity';
 import { User } from 'src/user/user.entity';
 import { nowAsDate, formatDateISO } from 'src/helpers/date.helper';
@@ -117,14 +118,8 @@ export class CartService {
       return false; // El producto no tiene presentaciones definidas
     }
 
-    // Dividir las presentaciones por coma y limpiar espacios
-    const validPresentations = product.presentation
-      .split(',')
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-
     // Verificar que la presentación proporcionada existe (case-sensitive)
-    return validPresentations.includes(presentation);
+    return splitPresentations(product.presentation).includes(presentation);
   }
 
   async addItemToCart(
@@ -164,7 +159,7 @@ export class CartService {
       where: {
         cartId,
         productId,
-        presentation: presentationValue,
+        presentation: presentationValue ?? IsNull(),
       },
     });
 
@@ -198,6 +193,7 @@ export class CartService {
     cartId: number,
     productId: number,
     quantity: number,
+    presentation?: string,
   ): Promise<CartResponse> {
     // 1) Check the cart exists
     const cart = await this.cartRepository.findOne({ where: { id: cartId } });
@@ -205,11 +201,15 @@ export class CartService {
       throw new NotFoundException(`Cart ${cartId} not found`);
     }
 
-    // 2) Find the existing row (a cart can have multiple rows for the same
-    // product if presentations differ, but the legacy delete signature only
-    // takes productId — we operate on the first match, matching prior behavior).
+    // 2) Find the existing row. Un carrito puede tener varias filas del mismo
+    // producto (una por presentación): si viene presentation se borra esa fila
+    // exacta ('' = sin presentación). Sin el parámetro (clientes viejos) se
+    // mantiene el comportamiento anterior: la primera fila del producto.
     const existing = await this.cartItemRepository.findOne({
-      where: { cartId, productId },
+      where:
+        presentation === undefined
+          ? { cartId, productId }
+          : { cartId, productId, presentation: presentation || IsNull() },
     });
     if (!existing) {
       throw new BadRequestException(

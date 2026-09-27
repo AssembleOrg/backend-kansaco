@@ -76,11 +76,13 @@ export class CartController {
     @Param('cartId') cartId: number,
     @Param('productId') productId: number,
     @Query('quantity') quantity?: number,
+    @Query('presentation') presentation?: string,
   ): Promise<CartResponse> {
     return this.cartService.deleteItemFromCart(
       cartId,
       productId,
       quantity ?? 1,
+      presentation,
     );
   }
 

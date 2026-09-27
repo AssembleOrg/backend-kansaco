@@ -10,6 +10,7 @@ import { OrderItemData } from './order.entity';
 import { Product } from '../product/product.entity';
 import { User } from '../user/user.entity';
 import { PricingService } from '../pricing/pricing.service';
+import { BultoService } from '../bulto/bulto.service';
 
 @Injectable()
 export class OrderService {
@@ -21,6 +22,7 @@ export class OrderService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly pricingService: PricingService,
+    private readonly bultoService: BultoService,
   ) {}
 
   async create(userId: string, orderData: SendOrderEmailDto): Promise<Order> {
@@ -183,7 +185,7 @@ export class OrderService {
     }
 
     if (updateData.items) {
-      order.items = await this.pricedItems(order, updateData.items);
+      order.items = await this.pricedItems(order, updateData.items, isStaff);
       // Recalcular total si se modificaron items
       order.totalAmount = this.calculateTotal(order.items);
     }
@@ -201,10 +203,15 @@ export class OrderService {
    * dueño del pedido. Se ignora el unitPrice que manda el front: para el staff
    * es el precio base sin recargo (le pisaría la lista al cliente) y para un
    * cliente sería manipulable. Nombre del producto: el de la BD.
+   *
+   * Producto excepcional (productId null): línea libre que carga el staff
+   * (descripción, cantidad, envase), sin precio ni bultos. Un cliente solo
+   * puede conservarla tal cual o quitarla.
    */
   private async pricedItems(
     order: Order,
     items: OrderItemDto[],
+    isStaff: boolean,
   ): Promise<OrderItemData[]> {
     if (items.length === 0) {
       throw new BadRequestException('El pedido debe tener al menos un producto');
@@ -218,7 +225,25 @@ export class OrderService {
       );
     }
 
-    const ids = [...new Set(items.map((item) => item.productId))];
+    const libreKey = (i: { productName: string; presentation?: string; quantity: number }) =>
+      `${i.productName}|${i.presentation ?? ''}|${i.quantity}`;
+    const libresPrevias = new Set(
+      order.items.filter((i) => i.productId == null).map(libreKey),
+    );
+    for (const item of items.filter((i) => i.productId == null)) {
+      if (!item.productName?.trim()) {
+        throw new BadRequestException('El producto excepcional necesita una descripción');
+      }
+      if (!isStaff && !libresPrevias.has(libreKey(item))) {
+        throw new ForbiddenException('Solo el equipo comercial puede cargar productos excepcionales');
+      }
+    }
+
+    const ids = [
+      ...new Set(
+        items.filter((i) => i.productId != null).map((i) => i.productId as number),
+      ),
+    ];
     const products = await this.productRepository.find({
       where: { id: In(ids) },
       select: ['id', 'name', 'price'],
@@ -247,7 +272,28 @@ export class OrderService {
       order.items.map((item) => [item.productId, item.unitPrice]),
     );
 
+    // Bultos: un ítem que ya estaba en el pedido conserva su copia (histórico);
+    // uno nuevo toma los bultos vigentes del producto + presentación.
+    const previousBultos = new Map(
+      order.items.map((item) => [
+        BultoService.key(item.productId, item.presentation),
+        item.bultos,
+      ]),
+    );
+    const currentBultos = await this.bultoService.snapshotFor(
+      items.filter((i) => i.productId != null) as { productId: number; presentation?: string }[],
+    );
+
     return items.map((item) => {
+      if (item.productId == null) {
+        return {
+          productId: null,
+          productName: item.productName.trim(),
+          quantity: item.quantity,
+          presentation: item.presentation?.trim() || undefined,
+        };
+      }
+      const k = BultoService.key(item.productId, item.presentation);
       const product = byId.get(item.productId)!;
       const unitPrice = this.pricingService.applyRolePricing(
         Number(product.price),
@@ -260,6 +306,7 @@ export class OrderService {
         quantity: item.quantity,
         unitPrice: unitPrice ?? previous.get(item.productId),
         presentation: item.presentation,
+        bultos: previousBultos.get(k) ?? currentBultos.get(k),
       };
     });
   }

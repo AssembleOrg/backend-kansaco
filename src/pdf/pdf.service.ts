@@ -7,6 +7,7 @@ import { SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { PresupuestoData, PresupuestoProducto } from './presupuesto.types';
 import { Order, OrderShippingInfo } from '../order/order.entity';
 import { formatDireccion, modalidadLabel } from '../order/shipping.util';
+import { presentacionConBultos } from '../bulto/bulto.util';
 const sharp = require('sharp');
 
 /** Arma el bloque de envío del presupuesto desde la modalidad de la orden. */
@@ -92,6 +93,7 @@ export class PdfService {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         presentation: item.presentation,
+        bultos: item.bultos,
       })),
       totalAmount: order.totalAmount ? Number(order.totalAmount) : undefined,
       notes: order.notes,
@@ -246,7 +248,7 @@ export class PdfService {
     const productos: PresupuestoProducto[] = orderData.items.map((item) => ({
       cantidad: item.quantity,
       nombre: item.productName,
-      presentacion: item.presentation || '-',
+      presentacion: presentacionConBultos(item) || '-',
       precioUnitario: item.unitPrice || 0,
       subtotal: (item.unitPrice || 0) * item.quantity,
     }));

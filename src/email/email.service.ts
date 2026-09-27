@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { presentacionConBultos } from '../bulto/bulto.util';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
@@ -106,7 +107,7 @@ export class EmailService {
       return `
       <tr style="background-color: ${rowBgColor};">
         <td style="padding: 12px 15px; border-bottom: 1px solid #e0e0e0; font-weight: 500; color: #333;">${item.productName}</td>
-        <td style="padding: 12px 15px; border-bottom: 1px solid #e0e0e0; text-align: center; color: #666;">${item.presentation || '-'}</td>
+        <td style="padding: 12px 15px; border-bottom: 1px solid #e0e0e0; text-align: center; color: #666;">${presentacionConBultos(item) || '-'}</td>
         <td style="padding: 12px 15px; border-bottom: 1px solid #e0e0e0; text-align: center; color: #666; font-weight: 600;">${item.quantity}</td>
         <td style="padding: 12px 15px; border-bottom: 1px solid #e0e0e0; text-align: right; color: #666;">-</td>
       </tr>

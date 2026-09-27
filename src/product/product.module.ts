@@ -12,6 +12,7 @@ import { ImageModule } from '../image/image.module';
 import { CategoryModule } from '../category/category.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { BultoModule } from '../bulto/bulto.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PricingModule } from '../pricing/pricing.module';
     CategoryModule,
     AnalyticsModule,
     PricingModule,
+    BultoModule,
   ],
   controllers: [ProductoController],
   providers: [ProductoService, AuthGuard, RolesGuard],

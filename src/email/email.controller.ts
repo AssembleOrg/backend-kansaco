@@ -24,6 +24,7 @@ import { CustomerType } from './dto/send-order-email.dto';
 import { PdfService } from '../pdf/pdf.service';
 import { CartService } from '../cart/cart.service';
 import { PricingService } from '../pricing/pricing.service';
+import { BultoService } from '../bulto/bulto.service';
 import { UserService } from '../user/user.service';
 import { esCategoriaB2B, MENSAJE_BLOQUEO, UserRole } from '../user/user.enum';
 
@@ -41,6 +42,7 @@ export class EmailController {
     private readonly cartService: CartService,
     private readonly pricingService: PricingService,
     private readonly userService: UserService,
+    private readonly bultoService: BultoService,
   ) {}
 
   @Post('send-order')
@@ -89,11 +91,16 @@ export class EmailController {
     // producto (BD) y la lista de precios del rol. Se ignora cualquier unitPrice
     // que envíe el frontend (no es fuente de verdad, sería manipulable).
     // Filtramos items con quantity <= 0 (filas zombie por bug histórico de deleteItemFromCart)
-    const items: OrderItemDto[] = cart.items
-      .filter((cartItem) => cartItem.quantity > 0)
+    const cartItems = cart.items.filter((cartItem) => cartItem.quantity > 0);
+    const bultos = await this.bultoService.snapshotFor(cartItems);
+    const items: OrderItemDto[] = cartItems
       .map((cartItem) => {
+        // Match por producto + presentación: el mismo producto puede estar
+        // en el carrito en dos presentaciones con cantidades distintas.
         const frontendItem = partialOrderData.items?.find(
-          (item) => item.productId === cartItem.productId,
+          (item) =>
+            item.productId === cartItem.productId &&
+            (item.presentation || null) === (cartItem.presentation || null),
         );
 
         const unitPrice =
@@ -109,6 +116,7 @@ export class EmailController {
           quantity: frontendItem?.quantity || cartItem.quantity,
           unitPrice,
           presentation: cartItem.presentation || undefined, // Siempre usar presentación del carrito
+          bultos: bultos.get(BultoService.key(cartItem.productId, cartItem.presentation)),
         };
       });
 

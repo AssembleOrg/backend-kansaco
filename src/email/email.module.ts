@@ -8,6 +8,7 @@ import { RabbitmqModule } from '../rabbitmq/rabbitmq.module';
 import { PdfModule } from '../pdf/pdf.module';
 import { CartModule } from '../cart/cart.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { BultoModule } from '../bulto/bulto.module';
 import { UserModule } from '../user/user.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { UserModule } from '../user/user.module';
     PdfModule,
     CartModule,
     PricingModule,
+    BultoModule,
     // UserModule: el checkout lee el estado actual de la cuenta (freno, categoría).
     UserModule,
   ],

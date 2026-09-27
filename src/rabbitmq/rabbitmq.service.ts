@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { presentacionConBultos } from '../bulto/bulto.util';
 import { ConfigService } from '@nestjs/config';
 import { PdfService } from '../pdf/pdf.service';
 import { EmailService } from '../email/email.service';
@@ -85,6 +86,7 @@ export class RabbitmqService {
     const imagesMap = new Map<number, string[]>();
 
     for (const item of items) {
+      if (item.productId == null) continue; // producto excepcional: sin imágenes
       try {
         const images = await this.productService.getProductImages(item.productId);
         const imageUrls = images
@@ -136,7 +138,7 @@ export class RabbitmqService {
           </td>
           <td style="padding: 10px; vertical-align: middle;">
             <strong>${item.productName}</strong><br>
-            <small style="color: #666;">${item.presentation || 'Sin presentación especificada'}</small>
+            <small style="color: #666;">${presentacionConBultos(item) || 'Sin presentación especificada'}</small>
           </td>
           <td style="padding: 5px; text-align: center; vertical-align: middle;">
             ${primaryImage ? `<img src="${primaryImage}" alt="${item.productName}" style="max-width: 100px; max-height: 100px; border-radius: 4px; object-fit: cover;" />` : '<span style="color: #999;">Sin imagen</span>'}
