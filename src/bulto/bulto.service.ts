@@ -26,7 +26,7 @@ export interface BultoSnapshot {
 /** productId -> presentación -> bultos (de mayor a menor). */
 export type BultosPorProducto = Record<number, Record<string, BultoInfo[]>>;
 
-const key = (productId: number, presentation?: string | null) =>
+const key = (productId: number | null, presentation?: string | null) =>
   `${productId}|${presentation ?? ''}`;
 
 @Injectable()

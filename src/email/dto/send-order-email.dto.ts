@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsArray, IsNumber, IsOptional, IsEnum, ValidateNested, ValidateIf, IsNotEmpty } from 'class-validator';
+import { IsString, IsEmail, IsArray, IsNumber, IsOptional, IsEnum, ValidateNested, ValidateIf, IsNotEmpty, MaxLength } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -56,13 +56,15 @@ export class BusinessInfoDto {
 }
 
 export class OrderItemDto {
-  @ApiProperty({ description: 'ID del producto' })
+  @ApiProperty({ description: 'ID del producto (null = producto excepcional)', nullable: true })
+  @ValidateIf((o) => o.productId !== null)
   @IsNumber()
   @Type(() => Number)
-  productId: number;
+  productId: number | null;
 
-  @ApiProperty({ description: 'Nombre del producto' })
+  @ApiProperty({ description: 'Nombre del producto (descripción si es excepcional)' })
   @IsString()
+  @MaxLength(500)
   productName: string;
 
   @ApiProperty({ description: 'Cantidad' })
@@ -80,6 +82,7 @@ export class OrderItemDto {
   @ApiPropertyOptional({ description: 'Presentación del producto (e.g., "Balde 20 Litros")' })
   @IsString()
   @IsOptional()
+  @MaxLength(100)
   presentation?: string;
 
   // Solo lectura: lo calcula el backend. Se acepta (y se ignora) para que el

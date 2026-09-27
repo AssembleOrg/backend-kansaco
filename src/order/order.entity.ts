@@ -29,7 +29,8 @@ export interface OrderBusinessInfo {
 }
 
 export interface OrderItemData {
-  productId: number;
+  /** null = producto excepcional (línea libre cargada por el staff). */
+  productId: number | null;
   productName: string;
   quantity: number;
   unitPrice?: number;

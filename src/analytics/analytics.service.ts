@@ -316,6 +316,7 @@ export class AnalyticsService {
        FROM "order" o
        CROSS JOIN LATERAL jsonb_array_elements(o.items) AS item
        WHERE o.status != 'CANCELADO'
+         AND item->>'productId' IS NOT NULL
        ${dateFilter}
        GROUP BY item->>'productName', item->>'productId'
        ORDER BY "totalSold" ${sortDir}

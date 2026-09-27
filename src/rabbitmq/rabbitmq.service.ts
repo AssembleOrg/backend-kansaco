@@ -86,6 +86,7 @@ export class RabbitmqService {
     const imagesMap = new Map<number, string[]>();
 
     for (const item of items) {
+      if (item.productId == null) continue; // producto excepcional: sin imágenes
       try {
         const images = await this.productService.getProductImages(item.productId);
         const imageUrls = images
