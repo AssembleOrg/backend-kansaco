@@ -109,73 +109,76 @@ export class PdfService {
    */
   async renderPresupuesto(data: PresupuestoData): Promise<Buffer> {
     try {
-      const html = this.template(data);
-
-      const launchOptions: any = {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-extensions',
-        ],
-      };
-
-      try {
-        const puppeteerExecutablePath = puppeteer.executablePath();
-        if (puppeteerExecutablePath && fs.existsSync(puppeteerExecutablePath)) {
-          launchOptions.executablePath = puppeteerExecutablePath;
-          this.logger.log(`Usando Chrome desde: ${puppeteerExecutablePath}`);
-        } else {
-          this.logger.warn(
-            `Chrome no encontrado en: ${puppeteerExecutablePath}. Puppeteer intentará encontrarlo automáticamente.`,
-          );
-        }
-      } catch (error: any) {
-        this.logger.warn(
-          `Error obteniendo ruta de Chrome: ${error.message}. Puppeteer intentará encontrarlo automáticamente.`,
-        );
-      }
-
-      const browser = await puppeteer.launch(launchOptions);
-      // finally: si setContent/pdf tiran (timeout, HTML roto), sin esto el
-      // proceso de Chromium queda huérfano (~100MB+ c/u) hasta el próximo deploy.
-      try {
-        const page = await browser.newPage();
-
-        await page.setViewport({
-          width: 794,
-          height: 1123,
-        });
-
-        await page.setContent(html, {
-          waitUntil: 'load',
-          timeout: 30000,
-        });
-
-        const pdf = await page.pdf({
-          format: 'A4',
-          printBackground: true,
-          margin: {
-            top: '10mm',
-            right: '10mm',
-            bottom: '10mm',
-            left: '10mm',
-          },
-        });
-
-        this.logger.log(`PDF generado: ${data.presupuesto.numero}`);
-        return Buffer.from(pdf);
-      } finally {
-        await browser.close().catch((closeError: any) =>
-          this.logger.warn(`Error cerrando Chromium: ${closeError.message}`),
-        );
-      }
+      return await this.htmlToPdf(this.template(data), data.presupuesto.numero);
     } catch (error: any) {
       this.logger.error(`Error generando PDF: ${error.message}`, error.stack);
       throw error;
+    }
+  }
+
+  /** HTML → PDF A4 con Chromium headless (compartido por presupuesto y reportes). */
+  async htmlToPdf(html: string, label: string): Promise<Buffer> {
+    const launchOptions: any = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+      ],
+    };
+
+    try {
+      const puppeteerExecutablePath = puppeteer.executablePath();
+      if (puppeteerExecutablePath && fs.existsSync(puppeteerExecutablePath)) {
+        launchOptions.executablePath = puppeteerExecutablePath;
+        this.logger.log(`Usando Chrome desde: ${puppeteerExecutablePath}`);
+      } else {
+        this.logger.warn(
+          `Chrome no encontrado en: ${puppeteerExecutablePath}. Puppeteer intentará encontrarlo automáticamente.`,
+        );
+      }
+    } catch (error: any) {
+      this.logger.warn(
+        `Error obteniendo ruta de Chrome: ${error.message}. Puppeteer intentará encontrarlo automáticamente.`,
+      );
+    }
+
+    const browser = await puppeteer.launch(launchOptions);
+    // finally: si setContent/pdf tiran (timeout, HTML roto), sin esto el
+    // proceso de Chromium queda huérfano (~100MB+ c/u) hasta el próximo deploy.
+    try {
+      const page = await browser.newPage();
+
+      await page.setViewport({
+        width: 794,
+        height: 1123,
+      });
+
+      await page.setContent(html, {
+        waitUntil: 'load',
+        timeout: 30000,
+      });
+
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '10mm',
+          right: '10mm',
+          bottom: '10mm',
+          left: '10mm',
+        },
+      });
+
+      this.logger.log(`PDF generado: ${label}`);
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close().catch((closeError: any) =>
+        this.logger.warn(`Error cerrando Chromium: ${closeError.message}`),
+      );
     }
   }
 

@@ -108,4 +108,11 @@ export class Order {
     transformer: dateTransformer,
   })
   updatedAt: DateTime;
+
+  /** Último cambio real de estado (no se mueve al editar notas). */
+  @Column({
+    type: 'timestamp',
+    transformer: dateTransformer,
+  })
+  statusChangedAt: DateTime;
 }

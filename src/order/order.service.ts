@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Brackets, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Order } from './order.entity';
 import { OrderStatus } from './order.enum';
+import { now } from '../helpers/date.helper';
+import { escapeLike, OrderFilters } from './order-filters';
 import { OrderItemDto, SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { esCategoriaB2B, UserRole } from '../user/user.enum';
@@ -11,6 +13,8 @@ import { Product } from '../product/product.entity';
 import { User } from '../user/user.entity';
 import { PricingService } from '../pricing/pricing.service';
 import { BultoService } from '../bulto/bulto.service';
+
+export const EXPORT_MAX = 5000;
 
 @Injectable()
 export class OrderService {
@@ -100,6 +104,7 @@ export class OrderService {
   async findAllPaginated(
     page: number = 1,
     limit: number = 20,
+    filters: OrderFilters = {},
   ): Promise<{
     data: Order[];
     total: number;
@@ -108,14 +113,17 @@ export class OrderService {
     totalPages: number;
     hasNext: boolean;
     hasPrev: boolean;
+    countsByStatus: Record<OrderStatus, number>;
   }> {
     const skip = (page - 1) * limit;
 
-    const [orders, total] = await this.orderRepository.findAndCount({
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    const [orders, total] = await this.filteredQuery(filters)
+      .orderBy(this.dateColumn(filters), filters.orden === 'asc' ? 'ASC' : 'DESC')
+      // Desempate estable: sin esto, pedidos con la misma fecha se repiten/saltan entre páginas.
+      .addOrderBy('o.id', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     const totalPages = Math.ceil(total / limit);
 
@@ -127,12 +135,111 @@ export class OrderService {
       totalPages,
       hasNext: page < totalPages,
       hasPrev: page > 1,
+      countsByStatus: await this.countsByStatus(filters),
     };
+  }
+
+  /** Conteo por estado con los mismos filtros salvo el de estado (para los chips). */
+  async countsByStatus(filters: OrderFilters): Promise<Record<OrderStatus, number>> {
+    const rows: { status: OrderStatus; count: string }[] = await this.filteredQuery({
+      ...filters,
+      status: undefined,
+    })
+      .select('o.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('o.status')
+      .getRawMany();
+    const counts = Object.fromEntries(
+      Object.values(OrderStatus).map((s) => [s, 0]),
+    ) as Record<OrderStatus, number>;
+    rows.forEach((r) => (counts[r.status] = Number(r.count)));
+    return counts;
+  }
+
+  /** Pedidos para exportar (sin paginar). Corta si el rango es demasiado grande. */
+  async findForExport(filters: OrderFilters): Promise<Order[]> {
+    const orders = await this.filteredQuery(filters)
+      .orderBy(this.dateColumn(filters), 'ASC')
+      .take(EXPORT_MAX + 1)
+      .getMany();
+    // ponytail: tope fijo en memoria; streamear si alguna vez hace falta más.
+    if (orders.length > EXPORT_MAX) {
+      throw new BadRequestException(
+        `Más de ${EXPORT_MAX} pedidos: acotá el rango de fechas o los filtros.`,
+      );
+    }
+    return orders;
+  }
+
+  /** SKU (= familia Tango) de los productos de los pedidos, por productId. */
+  async skusFor(orders: Order[]): Promise<Map<number, string>> {
+    const ids = [
+      ...new Set(
+        orders.flatMap((o) => o.items.map((i) => i.productId)).filter((id): id is number => id != null),
+      ),
+    ];
+    if (!ids.length) return new Map();
+    const products = await this.productRepository.find({
+      where: { id: In(ids) },
+      select: ['id', 'sku'],
+    });
+    return new Map(products.map((p) => [p.id, p.sku]));
+  }
+
+  /** Categoría actual de cada cuenta de los pedidos, por userId. */
+  async rolesFor(orders: Order[]): Promise<Map<string, UserRole>> {
+    const ids = [...new Set(orders.map((o) => o.userId))];
+    if (!ids.length) return new Map();
+    const users = await this.userRepository.find({
+      where: { id: In(ids) },
+      select: ['id', 'rol'],
+    });
+    return new Map(users.map((u) => [u.id, u.rol]));
+  }
+
+  private dateColumn(f: OrderFilters): string {
+    return f.dateField === 'created' ? 'o.createdAt' : 'o.statusChangedAt';
+  }
+
+  private filteredQuery(f: OrderFilters): SelectQueryBuilder<Order> {
+    const qb = this.orderRepository.createQueryBuilder('o');
+    if (f.status?.length) qb.andWhere('o.status IN (:...status)', { status: f.status });
+    if (f.categoria) {
+      qb.andWhere('o.userId IN (SELECT u.id FROM "user" u WHERE u.rol = :rol)', { rol: f.categoria });
+    }
+    if (f.provincia) {
+      qb.andWhere(`o."contactInfo"->>'provincia' ILIKE :prov`, { prov: escapeLike(f.provincia) });
+    }
+    const col = this.dateColumn(f);
+    if (f.start) qb.andWhere(`${col} >= :start`, { start: f.start });
+    if (f.end) qb.andWhere(`${col} < :end`, { end: f.end });
+    const q = f.q?.trim();
+    if (q) {
+      qb.andWhere(
+        new Brackets((w) => {
+          const like = `%${escapeLike(q)}%`;
+          for (const expr of [
+            `o."contactInfo"->>'fullName'`,
+            `o."contactInfo"->>'email'`,
+            `o."contactInfo"->>'phone'`,
+            `o."businessInfo"->>'cuit'`,
+            `o."businessInfo"->>'razonSocial'`,
+            `o.id::text`,
+          ]) {
+            w.orWhere(`${expr} ILIKE :like`, { like });
+          }
+        }),
+      );
+    }
+    return qb;
   }
 
   async updateStatus(id: string, status: OrderStatus): Promise<Order> {
     const order = await this.findOne(id);
-    order.status = status;
+    if (order.status !== status) {
+      order.status = status;
+      order.statusChangedAt = now();
+    }
     return this.orderRepository.save(order);
   }
 

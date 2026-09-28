@@ -12,6 +12,7 @@ import {
   Query,
   Res,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -31,6 +32,9 @@ import { Roles } from '../decorators/roles.decorator';
 import { UserRole } from '../user/user.enum';
 import { PaginatedResponse } from '../product/dto/pagination.dto';
 import { PdfService } from '../pdf/pdf.service';
+import { OrderStatus } from './order.enum';
+import { describeFilters, parseOrderFilters } from './order-filters';
+import { ordersReportHtml, ordersToXlsx } from './order-export';
 
 @ApiTags('Order')
 @Controller('order')
@@ -185,10 +189,19 @@ export class OrderController {
       },
     },
   })
+  @ApiQuery({ name: 'status', required: false, description: 'Estados separados por coma (PENDIENTE,COMPLETADO…)' })
+  @ApiQuery({ name: 'dateField', required: false, enum: ['status', 'created'], description: 'Fecha del rango. Default: con estado → fecha en que pasó a ese estado; sin estado → creación' })
+  @ApiQuery({ name: 'from', required: false, description: 'yyyy-MM-dd, hora AR, inclusivo' })
+  @ApiQuery({ name: 'to', required: false, description: 'yyyy-MM-dd, hora AR, inclusivo' })
+  @ApiQuery({ name: 'provincia', required: false })
+  @ApiQuery({ name: 'categoria', required: false, enum: UserRole, description: 'Categoría actual de la cuenta' })
+  @ApiQuery({ name: 'q', required: false, description: 'Busca en cliente, email, teléfono, CUIT, razón social e id' })
+  @ApiQuery({ name: 'orden', required: false, enum: ['desc', 'asc'], description: 'Más nuevos (desc, default) o más viejos (asc) primero' })
   async findAllPaginated(
+    @Query() query: Record<string, string>,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
-  ): Promise<PaginatedResponse<Order>> {
+  ): Promise<PaginatedResponse<Order> & { countsByStatus: Record<OrderStatus, number> }> {
     const pageNumber = page ? Number(page) : 1;
     const limitNumber = limit ? Number(limit) : 20;
     
@@ -199,10 +212,66 @@ export class OrderController {
     const result = await this.orderService.findAllPaginated(
       validPage,
       validLimit,
+      parseOrderFilters(query),
     );
 
     // El TransformInterceptor global se encarga de envolver en { status: 'success', data: ... }
     return result;
+  }
+
+  @Get('stats')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiOperation({ summary: 'Cantidad de pedidos por estado (badge del sidebar)' })
+  async stats(): Promise<{ countsByStatus: Record<OrderStatus, number> }> {
+    return { countsByStatus: await this.orderService.countsByStatus({}) };
+  }
+
+  @Get('export')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiOperation({ summary: 'Exportar pedidos filtrados (xlsx o pdf, sin precios). Acepta los mismos filtros que all/paginated.' })
+  @ApiQuery({ name: 'format', required: true, enum: ['xlsx', 'pdf'] })
+  async exportOrders(
+    @Query() query: Record<string, string>,
+    @Res() res: Response,
+  ): Promise<void> {
+    const format = query.format;
+    if (format !== 'xlsx' && format !== 'pdf') {
+      throw new BadRequestException('format debe ser xlsx o pdf');
+    }
+    const filters = parseOrderFilters(query);
+    const orders = await this.orderService.findForExport(filters);
+
+    const parts = [
+      'pedidos',
+      filters.status?.join('-'),
+      query.from,
+      query.to,
+    ].filter(Boolean);
+    const fileName = `${parts.join('_')}.${format}`;
+
+    const buffer =
+      format === 'xlsx'
+        ? await ordersToXlsx(
+            orders,
+            await this.orderService.skusFor(orders),
+            await this.orderService.rolesFor(orders),
+          )
+        : await this.pdfService.htmlToPdf(
+            ordersReportHtml(orders, describeFilters(query, filters)),
+            fileName,
+          );
+
+    res.setHeader(
+      'Content-Type',
+      format === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'application/pdf',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', buffer.length.toString());
+    res.send(buffer);
   }
 
   @Get(':id/pdf')

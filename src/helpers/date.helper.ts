@@ -60,5 +60,22 @@ export function fromISO(iso: string): DateTime {
   return DateTime.fromISO(iso).setZone(TIMEZONE);
 }
 
+/**
+ * Rango de días calendario AR ('yyyy-MM-dd', ambos inclusivos) → [start, end)
+ * para comparar con `>= start AND < end`. null si alguna fecha es inválida o from > to.
+ */
+export function dayRangeAR(
+  from?: string,
+  to?: string,
+): { start?: Date; end?: Date } | null {
+  const parse = (d: string) => DateTime.fromFormat(d, 'yyyy-MM-dd', { zone: TIMEZONE });
+  const start = from ? parse(from) : undefined;
+  const end = to ? parse(to).plus({ days: 1 }) : undefined;
+  if (start && !start.isValid) return null;
+  if (end && !end.isValid) return null;
+  if (start && end && start >= end) return null;
+  return { start: start?.toJSDate(), end: end?.toJSDate() };
+}
+
 
 
