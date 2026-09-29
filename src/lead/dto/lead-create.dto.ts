@@ -2,10 +2,12 @@ import { ApiProperty, ApiSchema } from '@nestjs/swagger';
 import {
   IsEmail,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { LeadType } from '../lead.enum';
 
@@ -50,4 +52,10 @@ export class LeadCreateDto {
   @IsOptional()
   @IsString()
   notasGenerales?: string;
+
+  @ApiProperty({ required: false, nullable: true, description: 'ID del vendedor asignado (null = sin asignar)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  vendorId?: number | null;
 }

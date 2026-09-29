@@ -12,6 +12,7 @@ import { LeadFilterDto } from './dto/lead-filter.dto';
 import { LeadResponseDto } from './dto/lead-response.dto';
 import { LeadType } from './lead.enum';
 import { formatDateISO } from '../helpers/date.helper';
+import { Vendor } from '../vendor/vendor.entity';
 
 @Injectable()
 export class LeadService {
@@ -20,6 +21,8 @@ export class LeadService {
   constructor(
     @InjectRepository(Lead)
     private readonly leadRepository: Repository<Lead>,
+    @InjectRepository(Vendor)
+    private readonly vendorRepo: Repository<Vendor>,
   ) {}
 
   async findAll(filters: LeadFilterDto = {}): Promise<LeadResponseDto[]> {
@@ -45,6 +48,12 @@ export class LeadService {
       });
     }
 
+    if (filters.vendorId === 0) {
+      qb.andWhere('lead.vendorId IS NULL');
+    } else if (filters.vendorId) {
+      qb.andWhere('lead.vendorId = :vid', { vid: filters.vendorId });
+    }
+
     qb.orderBy('lead.createdAt', 'DESC');
     const leads = await qb.getMany();
     return leads.map((l) => this.toResponseDto(l));
@@ -63,7 +72,16 @@ export class LeadService {
     return lead;
   }
 
+  private async assertVendor(vendorId: number | null | undefined) {
+    if (vendorId == null) return;
+    const exists = await this.vendorRepo.exists({ where: { id: vendorId } });
+    if (!exists) {
+      throw new NotFoundException(`Vendedor ${vendorId} no encontrado`);
+    }
+  }
+
   async create(dto: LeadCreateDto): Promise<LeadResponseDto> {
+    await this.assertVendor(dto.vendorId);
     const lead = this.leadRepository.create({
       nombre: dto.nombre.trim(),
       email: dto.email?.trim() ?? null,
@@ -72,6 +90,7 @@ export class LeadService {
       ciudad: dto.ciudad?.trim() ?? null,
       tipo: dto.tipo ?? LeadType.MAYORISTA,
       notasGenerales: dto.notasGenerales?.trim() ?? null,
+      vendorId: dto.vendorId ?? null,
     });
     const saved = await this.leadRepository.save(lead);
     this.logger.log(`Lead creado: ${saved.nombre} (id=${saved.id})`);
@@ -89,6 +108,10 @@ export class LeadService {
     if (dto.tipo !== undefined) lead.tipo = dto.tipo;
     if (dto.notasGenerales !== undefined)
       lead.notasGenerales = dto.notasGenerales?.trim() || null;
+    if (dto.vendorId !== undefined) {
+      await this.assertVendor(dto.vendorId);
+      lead.vendorId = dto.vendorId;
+    }
 
     const saved = await this.leadRepository.save(lead);
     return this.toResponseDto(saved);
@@ -110,6 +133,7 @@ export class LeadService {
       ciudad: lead.ciudad,
       tipo: lead.tipo,
       notasGenerales: lead.notasGenerales,
+      vendorId: lead.vendorId,
       createdAt: formatDateISO(lead.createdAt) || '',
       updatedAt: formatDateISO(lead.updatedAt) || '',
     };

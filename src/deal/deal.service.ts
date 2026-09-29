@@ -402,6 +402,7 @@ export class DealService {
         ciudad: deal.lead.ciudad,
         tipo: deal.lead.tipo,
         notasGenerales: deal.lead.notasGenerales,
+        vendorId: deal.lead.vendorId,
         createdAt: formatDateISO(deal.lead.createdAt) || '',
         updatedAt: formatDateISO(deal.lead.updatedAt) || '',
       },

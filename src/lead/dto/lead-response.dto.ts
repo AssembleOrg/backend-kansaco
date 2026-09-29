@@ -27,6 +27,9 @@ export class LeadResponseDto {
   @ApiProperty({ nullable: true })
   notasGenerales: string | null;
 
+  @ApiProperty({ nullable: true })
+  vendorId: number | null;
+
   @ApiProperty()
   createdAt: string;
 

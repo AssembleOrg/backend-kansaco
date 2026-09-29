@@ -1,5 +1,6 @@
 import { ApiPropertyOptional, ApiSchema } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { LeadType } from '../lead.enum';
 
 @ApiSchema({ name: 'LeadFilterDto' })
@@ -23,4 +24,11 @@ export class LeadFilterDto {
   @IsOptional()
   @IsString()
   provincia?: string;
+
+  @ApiPropertyOptional({ description: 'ID del vendedor; 0 = sin asignar' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  vendorId?: number;
 }
