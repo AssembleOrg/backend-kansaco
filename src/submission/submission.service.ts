@@ -62,7 +62,57 @@ export class SubmissionService {
     this.logger.log(
       `Nueva solicitud ${saved.tipo} #${saved.id} de ${saved.nombre}`,
     );
+    if (saved.tipo === SubmissionType.MAYORISTA) void this.pushToErp(saved);
     return saved;
+  }
+
+  /**
+   * Avisa al ERP para que cree el lead + negocio en la primera etapa.
+   * En segundo plano y sin tirar errores: la solicitud ya quedó guardada acá
+   * (admin → Solicitudes). Si los 3 intentos fallan queda un ERROR en el log.
+   * El ERP no duplica (usa el id de la solicitud), así que reintentar es seguro.
+   */
+  private async pushToErp(s: ContactSubmission): Promise<void> {
+    const url = process.env.ERP_WEBFORM_URL;
+    const secret = process.env.ERP_WEBFORM_SECRET;
+    if (!url || !secret) return;
+
+    const body = JSON.stringify({
+      submissionId: s.id,
+      nombre: s.nombre,
+      email: s.email,
+      telefono: s.telefono,
+      mensaje: s.mensaje,
+      payload: s.payload,
+    });
+    for (const [i, delayMs] of [0, 5_000, 30_000].entries()) {
+      await new Promise((r) => setTimeout(r, delayMs));
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-webform-secret': secret,
+          },
+          body,
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (res.ok) return;
+        // 4xx (salvo 429) no se arregla reintentando
+        if (res.status < 500 && res.status !== 429) {
+          this.logger.error(
+            `ERP rechazó la solicitud #${s.id}: ${res.status} ${await res.text()}`,
+          );
+          return;
+        }
+        this.logger.warn(`ERP respondió ${res.status} (intento ${i + 1})`);
+      } catch (err) {
+        this.logger.warn(`ERP no responde (intento ${i + 1}): ${String(err)}`);
+      }
+    }
+    this.logger.error(
+      `No se pudo enviar la solicitud #${s.id} al ERP tras 3 intentos`,
+    );
   }
 
   async findAll(
