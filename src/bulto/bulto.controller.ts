@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +18,7 @@ import { AuthGuard } from '../guards/auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { UserRole } from '../user/user.enum';
-import { AssignBultoDto, CreateBultoDto, UpdateBultoDto } from './dto/bulto.dto';
+import { AssignBultoDto, CreateBultoDto, SetGamaDto, UpdateBultoDto } from './dto/bulto.dto';
 
 @Controller('bulto')
 @ApiTags('Kansaco - Bultos')
@@ -42,6 +43,33 @@ export class BultoController {
   @ApiBearerAuth()
   async list() {
     return this.bultoService.list();
+  }
+
+  /**
+   * Público: gamas de cada producto (de todas sus presentaciones), para el filtro
+   * de la tienda. Todo el catálogo en un pedido chico: { productId: ['AMG', 'AAG'] }.
+   */
+  @Get('gamas')
+  async gamas() {
+    return this.bultoService.gamasPorProducto();
+  }
+
+  /** Staff: { productId: { presentación: gama } } para ver/filtrar/editar en el admin. */
+  @Get('gamas/presentaciones')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth()
+  async gamasPorPresentacion() {
+    return this.bultoService.gamasPorPresentacion();
+  }
+
+  /** Staff: fija o quita (gama: null) la gama de una presentación. */
+  @Put('gamas')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth()
+  async setGama(@Body() dto: SetGamaDto) {
+    return this.bultoService.setGama(dto);
   }
 
   /** Staff: bultos de todo el catálogo en un pedido (el admin filtra por bultos). */

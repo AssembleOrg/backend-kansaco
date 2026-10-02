@@ -9,7 +9,7 @@ import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Bulto, ProductBulto } from './bulto.entity';
 import { Product } from '../product/product.entity';
 import { splitPresentations } from './bulto.util';
-import { AssignBultoDto, CreateBultoDto, UpdateBultoDto } from './dto/bulto.dto';
+import { AssignBultoDto, CreateBultoDto, SetGamaDto, UpdateBultoDto } from './dto/bulto.dto';
 
 export interface BultoInfo {
   id: number;
@@ -241,6 +241,42 @@ export class BultoService {
   }
 
   static key = key;
+
+  /** Staff: { productId: { presentación: gama } } de todo el catálogo. */
+  async gamasPorPresentacion(): Promise<Record<number, Record<string, string>>> {
+    const rows: Array<{ productId: number; presentation: string; gama: string }> =
+      await this.dataSource.query(`SELECT "productId", "presentation", "gama" FROM "product_gama"`);
+    const out: Record<number, Record<string, string>> = {};
+    for (const r of rows) (out[r.productId] ??= {})[r.presentation] = r.gama;
+    return out;
+  }
+
+  /** Staff: fija (o quita, con gama null) la gama de una presentación real del producto. */
+  async setGama(dto: SetGamaDto) {
+    await this.validarItems([{ productId: dto.productId, presentation: dto.presentation }]);
+    if (dto.gama) {
+      await this.dataSource.query(
+        `INSERT INTO "product_gama" ("productId", "presentation", "gama") VALUES ($1, $2, $3)
+         ON CONFLICT ("productId", "presentation") DO UPDATE SET "gama" = EXCLUDED."gama"`,
+        [dto.productId, dto.presentation, dto.gama],
+      );
+    } else {
+      await this.dataSource.query(
+        `DELETE FROM "product_gama" WHERE "productId" = $1 AND "presentation" = $2`,
+        [dto.productId, dto.presentation],
+      );
+    }
+    return { productId: dto.productId, presentation: dto.presentation, gama: dto.gama ?? null };
+  }
+
+  /** { productId: gamas distintas de sus presentaciones } (tabla product_gama). */
+  async gamasPorProducto(): Promise<Record<number, string[]>> {
+    const rows: Array<{ productId: number; gamas: string[] }> = await this.dataSource.query(
+      `SELECT "productId", array_agg(DISTINCT "gama" ORDER BY "gama") AS gamas
+         FROM "product_gama" GROUP BY "productId"`,
+    );
+    return Object.fromEntries(rows.map((r) => [r.productId, r.gamas]));
+  }
 
   /**
    * Borra asignaciones cuya presentación ya no existe en el producto

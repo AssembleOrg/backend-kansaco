@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -61,4 +62,13 @@ export class AssignBultoDto {
   @IsOptional()
   @IsBoolean()
   dryRun?: boolean;
+}
+
+export const GAMAS = ['AAG', 'AMG', 'ABG', 'GAG', 'GMG', 'GBG'] as const;
+
+export class SetGamaDto extends BultoItemDto {
+  @ApiPropertyOptional({ enum: GAMAS, nullable: true, description: 'null = quitar la gama' })
+  @IsOptional()
+  @IsIn(GAMAS)
+  gama: (typeof GAMAS)[number] | null;
 }

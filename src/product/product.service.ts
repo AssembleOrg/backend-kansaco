@@ -16,6 +16,7 @@ import { formatDateSpanish, now } from 'src/helpers/date.helper';
 import { CategoryService } from '../category/category.service';
 import { Category } from '../category/category.entity';
 import { BultoService } from '../bulto/bulto.service';
+import { splitPresentations } from '../bulto/bulto.util';
 
 export type ExportFormat = 'csv' | 'xml' | 'xlsx';
 
@@ -251,6 +252,11 @@ export class ProductoService {
       // ya no existen quedarían huérfanos: se borran en la misma transacción.
       if (body.presentation !== undefined) {
         await this.bultoService.pruneOrphans(manager, saved.id, saved.presentation);
+        // Misma regla para la gama por presentación.
+        await manager.query(
+          `DELETE FROM "product_gama" WHERE "productId" = $1 AND NOT ("presentation" = ANY($2))`,
+          [saved.id, splitPresentations(saved.presentation)],
+        );
       }
 
       return repo.findOne({

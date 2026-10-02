@@ -200,6 +200,89 @@ function capacidad(label: string): string {
   return `${n}l`;
 }
 
+const masFrecuente = (xs: string[]) => {
+  const c = new Map<string, number>();
+  xs.forEach((x) => c.set(x, (c.get(x) ?? 0) + 1));
+  return [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+};
+
+// --gamas: gama de Tango por presentación de cada producto web (tabla product_gama).
+// Match por SKU (igual que el import); la presentación web se cruza con las filas
+// Tango de igual capacidad ("200L" = "Tambor 200 Litros"). Si varias filas dan la
+// misma capacidad con gama distinta, gana la más frecuente. Opciones sin capacidad
+// ("GRADO 2") toman la gama del producto solo si todas sus filas tienen la misma.
+async function gamas(
+  web: Product[],
+  familias: Map<string, Row[]>,
+  webPorFamilia: Map<string, Product[]>,
+  apply: boolean,
+) {
+  const filasPorProducto = new Map<number, Row[]>();
+  for (const [familia, todas] of familias) {
+    const { propias } = separarIntrusos(todas);
+    const manual = web.filter((p) => p.id === YA_EN_WEB[familia]);
+    for (const p of webPorFamilia.get(familia) ?? manual) {
+      filasPorProducto.set(p.id, [...(filasPorProducto.get(p.id) ?? []), ...propias]);
+    }
+  }
+
+  const asignar: Array<{ productId: number; presentation: string; gama: string }> = [];
+  const sinGama: Array<Record<string, unknown>> = [];
+  for (const p of web) {
+    const filas = (filasPorProducto.get(p.id) ?? []).filter((r) => etiqueta(r).label);
+    const unica = new Set(filas.map((r) => r.gama)).size === 1 ? filas[0].gama : undefined;
+    for (const presentation of splitPresentations(p.presentation)) {
+      const cap = capacidad(presentation);
+      const delEnvase = cap ? filas.filter((r) => capacidad(etiqueta(r).label!) === cap) : [];
+      const gama = masFrecuente(delEnvase.map((r) => r.gama)) ?? unica;
+      if (gama) asignar.push({ productId: p.id, presentation, gama });
+      else
+        sinGama.push({
+          id: p.id,
+          sku: p.sku,
+          nombre: p.name,
+          presentacion: presentation,
+          motivo: filas.length ? 'sin fila Tango de esa capacidad' : 'SKU sin familia en Tango',
+        });
+    }
+  }
+
+  const rep = new Workbook();
+  const hoja = (nombre: string, filas: Array<Record<string, unknown>>) => {
+    const ws = rep.addWorksheet(nombre);
+    if (!filas.length) return;
+    ws.columns = Object.keys(filas[0]).map((k) => ({ header: k, key: k, width: 30 }));
+    ws.addRows(filas);
+    ws.getRow(1).font = { bold: true };
+  };
+  hoja('Con gama', asignar);
+  hoja('Sin gama', sinGama);
+  const out = path.resolve(__dirname, 'files', 'import-tango-gamas.xlsx');
+  await rep.xlsx.writeFile(out);
+
+  const productosConGama = new Set(asignar.map((a) => a.productId)).size;
+  console.log(`Productos: ${web.length}, con alguna gama: ${productosConGama}`);
+  console.log(`Presentaciones con gama: ${asignar.length}, sin gama: ${sinGama.length}`);
+  console.log(`Reporte: ${out}`);
+  if (!apply) {
+    console.log('\nDRY-RUN: no se escribió nada. Usá --gamas --apply para guardar.');
+    return;
+  }
+  // Upsert idempotente: se puede volver a correr cuando cambie el Excel.
+  await dataSource.transaction(async (manager) => {
+    for (let i = 0; i < asignar.length; i += 500) {
+      const lote = asignar.slice(i, i + 500);
+      await manager.query(
+        `INSERT INTO "product_gama" ("productId", "presentation", "gama")
+         SELECT * FROM unnest($1::int[], $2::text[], $3::varchar[])
+         ON CONFLICT ("productId", "presentation") DO UPDATE SET "gama" = EXCLUDED."gama"`,
+        [lote.map((a) => a.productId), lote.map((a) => a.presentation), lote.map((a) => a.gama)],
+      );
+    }
+  });
+  console.log(`\nAPLICADO: ${asignar.length} presentaciones con gama.`);
+}
+
 async function run() {
   const apply = process.argv.includes('--apply');
   const fileArg = process.argv.find((a) => a.startsWith('--file='));
@@ -230,6 +313,12 @@ async function run() {
       webPorFamilia.set(k, [...(webPorFamilia.get(k) ?? []), p]);
     }),
   );
+
+  if (process.argv.includes('--gamas')) {
+    await gamas(web, familias, webPorFamilia, apply);
+    await dataSource.destroy();
+    return;
+  }
 
   const nuevos: Array<Partial<Product> & { _familia: Row[]; _problema: string }> = [];
   const existentes: Array<Record<string, unknown>> = [];
