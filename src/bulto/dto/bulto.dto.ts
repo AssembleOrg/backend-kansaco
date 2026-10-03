@@ -72,3 +72,12 @@ export class SetGamaDto extends BultoItemDto {
   @IsIn(GAMAS)
   gama: (typeof GAMAS)[number] | null;
 }
+
+export class SetSkusDto extends BultoItemDto {
+  @ApiProperty({ type: [String], example: ['0010002700', '0020002700'], description: '[] = quitar' })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(20, { each: true })
+  skus: string[];
+}

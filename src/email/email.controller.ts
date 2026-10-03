@@ -93,6 +93,7 @@ export class EmailController {
     // Filtramos items con quantity <= 0 (filas zombie por bug histórico de deleteItemFromCart)
     const cartItems = cart.items.filter((cartItem) => cartItem.quantity > 0);
     const bultos = await this.bultoService.snapshotFor(cartItems);
+    const skus = await this.bultoService.snapshotSkus(cartItems);
     const items: OrderItemDto[] = cartItems
       .map((cartItem) => {
         // Match por producto + presentación: el mismo producto puede estar
@@ -117,6 +118,7 @@ export class EmailController {
           unitPrice,
           presentation: cartItem.presentation || undefined, // Siempre usar presentación del carrito
           bultos: bultos.get(BultoService.key(cartItem.productId, cartItem.presentation)),
+          skus: skus.get(BultoService.key(cartItem.productId, cartItem.presentation)),
         };
       });
 
@@ -218,7 +220,7 @@ export class EmailController {
     let itemsText = orderData.items
       .map(
         (item) =>
-          `  - ${item.productName} (Cantidad: ${item.quantity}${item.presentation ? `, Presentación: ${item.presentation}` : ''})`,
+          `  - ${item.productName} (Cantidad: ${item.quantity}${item.presentation ? `, Presentación: ${item.presentation}` : ''}${item.skus?.length ? `, SKU: ${item.skus.join(' / ')}` : ''})`,
       )
       .join('\n');
 

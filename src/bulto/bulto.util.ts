@@ -36,12 +36,14 @@ export const describirBultos = (quantity: number, bultos?: BultoLike[] | null): 
   return partes.join(' + ');
 };
 
-/** "Bidón 1 Litro · 2 × Caja x 8" para PDF y emails. */
+/** "Bidón 1 Litro · 2 × Caja x 8 · SKU 0050002700" para PDF y emails. */
 export const presentacionConBultos = (item: {
   presentation?: string;
   quantity: number;
   bultos?: BultoLike[];
+  skus?: string[];
 }): string => {
   const desc = describirBultos(item.quantity, item.bultos);
-  return [item.presentation, desc].filter(Boolean).join(' · ');
+  const skus = item.skus?.length ? `SKU ${item.skus.join(' / ')}` : '';
+  return [item.presentation, desc, skus].filter(Boolean).join(' · ');
 };

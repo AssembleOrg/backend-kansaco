@@ -5,6 +5,7 @@ import {
   Get,
   Logger,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -40,6 +41,7 @@ import { RolesGuard } from 'src/guards/roles.guard';
 import { Roles } from 'src/decorators/roles.decorator';
 import { UserRole } from 'src/user/user.enum';
 import { ProductEdit } from './dto/productEdit.dto';
+import { RenamePresentationDto } from './dto/renamePresentation.dto';
 import { ProductCreate } from './dto/productCreate.dto';
 import { ProductImageResponse } from './dto/product-image-response.dto';
 import { formatDateISO } from '../helpers/date.helper';
@@ -326,6 +328,23 @@ export class ProductoController {
     @Body(ValidationPipe) body: ProductEdit,
   ): Promise<ProductResponse> {
     const product = await this.productoService.editProduct(id, body);
+    return this.toProductResponse(product);
+  }
+
+  /**
+   * Renombra una presentación y mueve con ella sus bultos, gama, SKU Tango y
+   * los carritos abiertos (el edit normal los borraría por "huérfanos").
+   */
+  @Patch('/:id/presentation/rename')
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @UseGuards(AuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: ProductResponse })
+  async renamePresentation(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(ValidationPipe) body: RenamePresentationDto,
+  ): Promise<ProductResponse> {
+    const product = await this.productoService.renamePresentation(id, body.from, body.to);
     return this.toProductResponse(product);
   }
 

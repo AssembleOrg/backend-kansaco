@@ -37,6 +37,8 @@ export interface OrderItemData {
   presentation?: string;
   /** Copia de los bultos vigentes al crear/editar el ítem (histórico). */
   bultos?: { nombre: string; unidades: number }[];
+  /** Copia de los códigos Tango de la presentación al crear/editar el ítem. */
+  skus?: string[];
 }
 
 // Logística de envío (MÓDULO 3). Se guarda dentro del JSONB de la orden.

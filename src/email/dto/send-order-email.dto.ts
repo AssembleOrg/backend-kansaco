@@ -91,6 +91,12 @@ export class OrderItemDto {
   @IsOptional()
   @IsArray()
   bultos?: { nombre: string; unidades: number }[];
+
+  // Solo lectura: códigos Tango de la presentación (snapshot del backend).
+  @ApiPropertyOptional({ description: 'Códigos Tango (calculado por el backend, se ignora)' })
+  @IsOptional()
+  @IsArray()
+  skus?: string[];
 }
 
 export enum CustomerType {

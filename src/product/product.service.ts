@@ -252,15 +252,66 @@ export class ProductoService {
       // ya no existen quedarían huérfanos: se borran en la misma transacción.
       if (body.presentation !== undefined) {
         await this.bultoService.pruneOrphans(manager, saved.id, saved.presentation);
-        // Misma regla para la gama por presentación.
-        await manager.query(
-          `DELETE FROM "product_gama" WHERE "productId" = $1 AND NOT ("presentation" = ANY($2))`,
-          [saved.id, splitPresentations(saved.presentation)],
-        );
+        // Misma regla para la gama y los códigos Tango por presentación.
+        const vigentes = splitPresentations(saved.presentation);
+        for (const tabla of ['product_gama', 'product_presentation_sku']) {
+          await manager.query(
+            `DELETE FROM "${tabla}" WHERE "productId" = $1 AND NOT ("presentation" = ANY($2))`,
+            [saved.id, vigentes],
+          );
+        }
       }
 
       return repo.findOne({
         where: { id: saved.id },
+        relations: ['categories'],
+      });
+    });
+  }
+
+  /**
+   * Renombra una opción de presentación y mueve todo lo que cuelga de su texto
+   * (bultos, gama, SKU Tango y carritos abiertos) al nombre nuevo, en una sola
+   * transacción. Las órdenes no se tocan: son históricas.
+   */
+  async renamePresentation(id: number, from: string, to: string): Promise<Product> {
+    return this.dataSource.transaction(async (manager) => {
+      const product = await manager.getRepository(Product).findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!product) throw new BadRequestException(`Product with id: ${id} not found`);
+
+      const opciones = splitPresentations(product.presentation);
+      if (!opciones.includes(from)) {
+        throw new BadRequestException(`La presentación "${from}" no existe en este producto`);
+      }
+      if (to === from) throw new BadRequestException('El nombre nuevo es igual al actual');
+      if (opciones.includes(to)) {
+        throw new BadRequestException(`El producto ya tiene una presentación "${to}"`);
+      }
+
+      // `to` no es una opción vigente: cualquier fila con ese texto es basura
+      // vieja y chocaría con la PK al mover.
+      for (const tabla of ['product_bulto', 'product_gama', 'product_presentation_sku']) {
+        await manager.query(
+          `DELETE FROM "${tabla}" WHERE "productId" = $1 AND "presentation" = $2`,
+          [id, to],
+        );
+      }
+      for (const tabla of ['product_bulto', 'product_gama', 'product_presentation_sku', 'cart_item']) {
+        await manager.query(
+          `UPDATE "${tabla}" SET "presentation" = $3 WHERE "productId" = $1 AND "presentation" = $2`,
+          [id, from, to],
+        );
+      }
+
+      // Mismo orden; las demás opciones quedan con su texto exacto (ya normalizado).
+      const presentation = opciones.map((o) => (o === from ? to : o)).join(', ');
+      await manager.update(Product, { id }, { presentation });
+
+      return manager.getRepository(Product).findOne({
+        where: { id },
         relations: ['categories'],
       });
     });

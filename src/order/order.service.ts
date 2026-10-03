@@ -387,9 +387,16 @@ export class OrderService {
         item.bultos,
       ]),
     );
-    const currentBultos = await this.bultoService.snapshotFor(
-      items.filter((i) => i.productId != null) as { productId: number; presentation?: string }[],
+    const conProducto = items.filter((i) => i.productId != null) as {
+      productId: number;
+      presentation?: string;
+    }[];
+    const currentBultos = await this.bultoService.snapshotFor(conProducto);
+    // Códigos Tango: misma regla que bultos (el ítem existente conserva su copia).
+    const previousSkus = new Map(
+      order.items.map((item) => [BultoService.key(item.productId, item.presentation), item.skus]),
     );
+    const currentSkus = await this.bultoService.snapshotSkus(conProducto);
 
     return items.map((item) => {
       if (item.productId == null) {
@@ -414,6 +421,7 @@ export class OrderService {
         unitPrice: unitPrice ?? previous.get(item.productId),
         presentation: item.presentation,
         bultos: previousBultos.get(k) ?? currentBultos.get(k),
+        skus: previousSkus.get(k) ?? currentSkus.get(k),
       };
     });
   }

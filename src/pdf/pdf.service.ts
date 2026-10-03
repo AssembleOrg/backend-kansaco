@@ -94,6 +94,7 @@ export class PdfService {
         unitPrice: item.unitPrice,
         presentation: item.presentation,
         bultos: item.bultos,
+        skus: item.skus,
       })),
       totalAmount: order.totalAmount ? Number(order.totalAmount) : undefined,
       notes: order.notes,

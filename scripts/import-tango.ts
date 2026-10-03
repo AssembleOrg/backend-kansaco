@@ -211,29 +211,109 @@ const masFrecuente = (xs: string[]) => {
 // Tango de igual capacidad ("200L" = "Tambor 200 Litros"). Si varias filas dan la
 // misma capacidad con gama distinta, gana la más frecuente. Opciones sin capacidad
 // ("GRADO 2") toman la gama del producto solo si todas sus filas tienen la misma.
+// Filas Tango (sin intrusas ni cajas) de cada producto web, por SKU de familia.
+function filasPorProductoWeb(
+  web: Product[],
+  familias: Map<string, Row[]>,
+  webPorFamilia: Map<string, Product[]>,
+) {
+  const out = new Map<number, Row[]>();
+  for (const [familia, todas] of familias) {
+    const { propias } = separarIntrusos(todas);
+    const manual = web.filter((p) => p.id === YA_EN_WEB[familia]);
+    for (const p of webPorFamilia.get(familia) ?? manual) {
+      out.set(p.id, [...(out.get(p.id) ?? []), ...propias.filter((r) => etiqueta(r).label)]);
+    }
+  }
+  return out;
+}
+
+// Filas Tango de la misma capacidad que la presentación web ("200L" = "Tambor 200 Litros").
+const filasDelEnvase = (filas: Row[], presentation: string) => {
+  const cap = capacidad(presentation);
+  return cap ? filas.filter((r) => capacidad(etiqueta(r).label!) === cap) : [];
+};
+
+async function guardarReporte(archivo: string, hojas: Record<string, Array<Record<string, unknown>>>) {
+  const rep = new Workbook();
+  for (const [nombre, filas] of Object.entries(hojas)) {
+    const ws = rep.addWorksheet(nombre);
+    if (!filas.length) continue;
+    ws.columns = Object.keys(filas[0]).map((k) => ({ header: k, key: k, width: 30 }));
+    ws.addRows(filas);
+    ws.getRow(1).font = { bold: true };
+  }
+  const out = path.resolve(__dirname, 'files', archivo);
+  await rep.xlsx.writeFile(out);
+  return out;
+}
+
+// --skus: TODOS los códigos Tango de cada presentación web (tabla product_presentation_sku).
+// Mismo cruce que --gamas. Reemplaza los códigos de cada presentación (idempotente).
+async function skus(
+  web: Product[],
+  familias: Map<string, Row[]>,
+  webPorFamilia: Map<string, Product[]>,
+  apply: boolean,
+) {
+  const filasPorProducto = filasPorProductoWeb(web, familias, webPorFamilia);
+  const asignar: Array<{ productId: number; presentation: string; sku: string }> = [];
+  const sinSku: Array<Record<string, unknown>> = [];
+  for (const p of web) {
+    const filas = filasPorProducto.get(p.id) ?? [];
+    for (const presentation of splitPresentations(p.presentation)) {
+      const codigos = [...new Set(filasDelEnvase(filas, presentation).map((r) => r.codigo))];
+      if (codigos.length) codigos.forEach((sku) => asignar.push({ productId: p.id, presentation, sku }));
+      else
+        sinSku.push({
+          id: p.id,
+          sku: p.sku,
+          nombre: p.name,
+          presentacion: presentation,
+          motivo: filas.length ? 'sin fila Tango de esa capacidad' : 'SKU sin familia en Tango',
+        });
+    }
+  }
+  const out = await guardarReporte('import-tango-skus.xlsx', { 'Con SKU': asignar, 'Sin SKU': sinSku });
+
+  const presentaciones = new Set(asignar.map((a) => `${a.productId}|${a.presentation}`)).size;
+  console.log(`Productos: ${web.length}, con algún código: ${new Set(asignar.map((a) => a.productId)).size}`);
+  console.log(`Presentaciones con código: ${presentaciones} (${asignar.length} códigos), sin código: ${sinSku.length}`);
+  console.log(`Reporte: ${out}`);
+  if (!apply) {
+    console.log('\nDRY-RUN: no se escribió nada. Usá --skus --apply para guardar.');
+    return;
+  }
+  await dataSource.transaction(async (manager) => {
+    const ids = [...new Set(asignar.map((a) => a.productId))];
+    await manager.query(`DELETE FROM "product_presentation_sku" WHERE "productId" = ANY($1)`, [ids]);
+    for (let i = 0; i < asignar.length; i += 500) {
+      const lote = asignar.slice(i, i + 500);
+      await manager.query(
+        `INSERT INTO "product_presentation_sku" ("productId", "presentation", "sku")
+         SELECT * FROM unnest($1::int[], $2::text[], $3::varchar[])`,
+        [lote.map((a) => a.productId), lote.map((a) => a.presentation), lote.map((a) => a.sku)],
+      );
+    }
+  });
+  console.log(`\nAPLICADO: ${asignar.length} códigos en ${presentaciones} presentaciones.`);
+}
+
 async function gamas(
   web: Product[],
   familias: Map<string, Row[]>,
   webPorFamilia: Map<string, Product[]>,
   apply: boolean,
 ) {
-  const filasPorProducto = new Map<number, Row[]>();
-  for (const [familia, todas] of familias) {
-    const { propias } = separarIntrusos(todas);
-    const manual = web.filter((p) => p.id === YA_EN_WEB[familia]);
-    for (const p of webPorFamilia.get(familia) ?? manual) {
-      filasPorProducto.set(p.id, [...(filasPorProducto.get(p.id) ?? []), ...propias]);
-    }
-  }
+  const filasPorProducto = filasPorProductoWeb(web, familias, webPorFamilia);
 
   const asignar: Array<{ productId: number; presentation: string; gama: string }> = [];
   const sinGama: Array<Record<string, unknown>> = [];
   for (const p of web) {
-    const filas = (filasPorProducto.get(p.id) ?? []).filter((r) => etiqueta(r).label);
+    const filas = filasPorProducto.get(p.id) ?? [];
     const unica = new Set(filas.map((r) => r.gama)).size === 1 ? filas[0].gama : undefined;
     for (const presentation of splitPresentations(p.presentation)) {
-      const cap = capacidad(presentation);
-      const delEnvase = cap ? filas.filter((r) => capacidad(etiqueta(r).label!) === cap) : [];
+      const delEnvase = filasDelEnvase(filas, presentation);
       const gama = masFrecuente(delEnvase.map((r) => r.gama)) ?? unica;
       if (gama) asignar.push({ productId: p.id, presentation, gama });
       else
@@ -247,18 +327,7 @@ async function gamas(
     }
   }
 
-  const rep = new Workbook();
-  const hoja = (nombre: string, filas: Array<Record<string, unknown>>) => {
-    const ws = rep.addWorksheet(nombre);
-    if (!filas.length) return;
-    ws.columns = Object.keys(filas[0]).map((k) => ({ header: k, key: k, width: 30 }));
-    ws.addRows(filas);
-    ws.getRow(1).font = { bold: true };
-  };
-  hoja('Con gama', asignar);
-  hoja('Sin gama', sinGama);
-  const out = path.resolve(__dirname, 'files', 'import-tango-gamas.xlsx');
-  await rep.xlsx.writeFile(out);
+  const out = await guardarReporte('import-tango-gamas.xlsx', { 'Con gama': asignar, 'Sin gama': sinGama });
 
   const productosConGama = new Set(asignar.map((a) => a.productId)).size;
   console.log(`Productos: ${web.length}, con alguna gama: ${productosConGama}`);
@@ -316,6 +385,11 @@ async function run() {
 
   if (process.argv.includes('--gamas')) {
     await gamas(web, familias, webPorFamilia, apply);
+    await dataSource.destroy();
+    return;
+  }
+  if (process.argv.includes('--skus')) {
+    await skus(web, familias, webPorFamilia, apply);
     await dataSource.destroy();
     return;
   }

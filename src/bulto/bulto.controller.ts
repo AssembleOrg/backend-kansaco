@@ -18,7 +18,7 @@ import { AuthGuard } from '../guards/auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { UserRole } from '../user/user.enum';
-import { AssignBultoDto, CreateBultoDto, SetGamaDto, UpdateBultoDto } from './dto/bulto.dto';
+import { AssignBultoDto, CreateBultoDto, SetGamaDto, SetSkusDto, UpdateBultoDto } from './dto/bulto.dto';
 
 @Controller('bulto')
 @ApiTags('Kansaco - Bultos')
@@ -52,6 +52,34 @@ export class BultoController {
   @Get('gamas')
   async gamas() {
     return this.bultoService.gamasPorProducto();
+  }
+
+  /** Público: códigos Tango por producto/presentación. ?ids=1,2,3 (máx. 500). */
+  @Get('skus')
+  async skus(@Query('ids') ids = '') {
+    const list = [...new Set(ids.split(',').map(Number))].filter(
+      (n) => Number.isInteger(n) && n > 0,
+    );
+    if (list.length > 500) throw new BadRequestException('Máximo 500 productos');
+    return this.bultoService.skusPorPresentacion(list);
+  }
+
+  /** Staff: códigos de todo el catálogo (lista y búsqueda del admin). */
+  @Get('skus/todos')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth()
+  async skusTodos() {
+    return this.bultoService.skusPorPresentacion();
+  }
+
+  /** Staff: reemplaza los códigos Tango de una presentación ([] = quitar). */
+  @Put('skus')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @ApiBearerAuth()
+  async setSkus(@Body() dto: SetSkusDto) {
+    return this.bultoService.setSkus(dto);
   }
 
   /** Staff: { productId: { presentación: gama } } para ver/filtrar/editar en el admin. */

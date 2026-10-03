@@ -9,7 +9,7 @@ import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Bulto, ProductBulto } from './bulto.entity';
 import { Product } from '../product/product.entity';
 import { splitPresentations } from './bulto.util';
-import { AssignBultoDto, CreateBultoDto, SetGamaDto, UpdateBultoDto } from './dto/bulto.dto';
+import { AssignBultoDto, CreateBultoDto, SetGamaDto, SetSkusDto, UpdateBultoDto } from './dto/bulto.dto';
 
 export interface BultoInfo {
   id: number;
@@ -241,6 +241,53 @@ export class BultoService {
   }
 
   static key = key;
+
+  /** { productId: { presentación: códigos Tango } }. Sin ids: todo el catálogo (staff). */
+  async skusPorPresentacion(productIds?: number[]): Promise<Record<number, Record<string, string[]>>> {
+    if (productIds?.length === 0) return {};
+    const rows: Array<{ productId: number; presentation: string; sku: string }> =
+      await this.dataSource.query(
+        `SELECT "productId", "presentation", "sku" FROM "product_presentation_sku"
+          ${productIds ? 'WHERE "productId" = ANY($1)' : ''} ORDER BY "sku"`,
+        productIds ? [productIds] : [],
+      );
+    const out: Record<number, Record<string, string[]>> = {};
+    for (const r of rows) ((out[r.productId] ??= {})[r.presentation] ??= []).push(r.sku);
+    return out;
+  }
+
+  /** Snapshot de códigos para ítems de pedido (key = productId|presentation). */
+  async snapshotSkus(
+    items: { productId: number; presentation?: string | null }[],
+  ): Promise<Map<string, string[]>> {
+    const mapa = await this.skusPorPresentacion([...new Set(items.map((i) => i.productId))]);
+    const out = new Map<string, string[]>();
+    for (const i of items) {
+      const skus = mapa[i.productId]?.[i.presentation ?? ''];
+      if (skus?.length) out.set(key(i.productId, i.presentation), skus);
+    }
+    return out;
+  }
+
+  /** Staff: reemplaza los códigos de una presentación real del producto ([] = quitar). */
+  async setSkus(dto: SetSkusDto) {
+    await this.validarItems([{ productId: dto.productId, presentation: dto.presentation }]);
+    const skus = [...new Set(dto.skus.map((s) => s.trim()).filter(Boolean))];
+    await this.dataSource.transaction(async (m) => {
+      await m.query(
+        `DELETE FROM "product_presentation_sku" WHERE "productId" = $1 AND "presentation" = $2`,
+        [dto.productId, dto.presentation],
+      );
+      if (skus.length) {
+        await m.query(
+          `INSERT INTO "product_presentation_sku" ("productId", "presentation", "sku")
+           SELECT $1, $2, unnest($3::varchar[])`,
+          [dto.productId, dto.presentation, skus],
+        );
+      }
+    });
+    return { productId: dto.productId, presentation: dto.presentation, skus };
+  }
 
   /** Staff: { productId: { presentación: gama } } de todo el catálogo. */
   async gamasPorPresentacion(): Promise<Record<number, Record<string, string>>> {
