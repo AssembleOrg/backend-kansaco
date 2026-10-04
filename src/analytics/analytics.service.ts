@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, ILike } from 'typeorm';
+import { Repository, Between, ILike, In } from 'typeorm';
 import { UserEvent } from './user-event.entity';
 import { User } from '../user/user.entity';
 import { UserRole, B2B_ROLES } from '../user/user.enum';
@@ -72,6 +72,22 @@ export class AnalyticsService {
     }
   }
 
+  async linkVisitorToUser(visitorId: string, userId: string, rol: string): Promise<void> {
+    try {
+      // Se agrega el rol para que, si es staff, sus vistas previas salgan de los rankings.
+      await this.eventRepo
+        .createQueryBuilder()
+        .update(UserEvent)
+        .set({ userId, payload: () => `payload || jsonb_build_object('rol', CAST(:rol AS text))` })
+        .where('"userId" IS NULL')
+        .andWhere("payload->>'visitorId' = :visitorId")
+        .setParameters({ visitorId, rol })
+        .execute();
+    } catch (error) {
+      this.logger.error(`Failed to link visitor: ${error.message}`);
+    }
+  }
+
   async getEvents(options: {
     page?: number;
     limit?: number;
@@ -80,6 +96,7 @@ export class AnalyticsService {
     dateFrom?: string;
     dateTo?: string;
     search?: string;
+    rol?: string;
   }) {
     const page = Math.max(1, options.page || 1);
     const limit = Math.min(Math.max(1, options.limit || 20), 100);
@@ -113,16 +130,41 @@ export class AnalyticsService {
     }
 
     if (options.search) {
-      qb.andWhere("event.payload::text ILIKE :search", {
-        search: `%${options.search}%`,
-      });
+      qb.andWhere(
+        `(event.payload::text ILIKE :search OR event.userId IN (
+          SELECT u.id FROM "user" u
+          WHERE u.email ILIKE :search OR u.nombre ILIKE :search OR u.apellido ILIKE :search
+        ))`,
+        { search: `%${options.search}%` },
+      );
+    }
+
+    // Rol del payload (snapshot al momento del evento) o rol actual del usuario,
+    // así entran también los eventos de usuarios recategorizados después.
+    if (options.rol) {
+      qb.andWhere(
+        `(event.payload->>'rol' = :rol OR event.userId IN (SELECT u.id FROM "user" u WHERE u.rol::text = :rol))`,
+        { rol: options.rol },
+      );
     }
 
     const [data, total] = await qb.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
 
+    const userIds = [...new Set(data.map((e) => e.userId).filter(Boolean))] as string[];
+    const users = userIds.length
+      ? await this.userRepo.find({
+          where: { id: In(userIds) },
+          select: ['id', 'email', 'nombre', 'apellido', 'rol'],
+        })
+      : [];
+    const usersById = new Map(users.map((u) => [u.id, u]));
+
     return {
-      data,
+      data: data.map((e) => ({
+        ...e,
+        user: e.userId ? usersById.get(e.userId) ?? null : null,
+      })),
       total,
       page,
       limit,
@@ -186,7 +228,10 @@ export class AnalyticsService {
       .select("event.payload->>'query'", 'query')
       .addSelect('COUNT(*)', 'count')
       .where('event.eventType = :type', { type: 'search' })
-      .andWhere("event.payload->>'query' IS NOT NULL");
+      .andWhere("event.payload->>'query' IS NOT NULL")
+      .andWhere("COALESCE(event.payload->>'rol', '') NOT IN (:...internalRoles)", {
+        internalRoles: [UserRole.ADMIN, UserRole.ASISTENTE],
+      });
 
     if (start) {
       qb.andWhere('event.createdAt >= :start', { start });
@@ -346,7 +391,23 @@ export class AnalyticsService {
       where: { userId, eventType: 'search' },
     });
 
-    return { lastLogin: lastLogin?.createdAt || null, loginCount, searchCount };
+    const viewCount = await this.eventRepo.count({
+      where: { userId, eventType: 'product_view' },
+    });
+
+    const recentEvents = await this.eventRepo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: 30,
+    });
+
+    return {
+      lastLogin: lastLogin?.createdAt || null,
+      loginCount,
+      searchCount,
+      viewCount,
+      recentEvents,
+    };
   }
 
   async getTopViewedProducts(limit = 10, period?: string, dateFrom?: string, dateTo?: string) {
@@ -358,8 +419,18 @@ export class AnalyticsService {
       .addSelect("(event.payload->>'productId')::int", 'productId')
       .addSelect("event.payload->>'productSlug'", 'productSlug')
       .addSelect('COUNT(*)', 'views')
+      // Personas distintas: usuario logueado o visitorId del navegador.
+      // Eventos viejos (sin ninguno de los dos) cuentan como una sola persona.
+      .addSelect(
+        `COUNT(DISTINCT COALESCE("event"."userId"::text, event.payload->>'visitorId', 'anon'))`,
+        'unique_viewers',
+      )
       .where('event.eventType = :type', { type: 'product_view' })
-      .andWhere("event.payload->>'productId' IS NOT NULL");
+      .andWhere("event.payload->>'productId' IS NOT NULL")
+      // Tráfico interno no cuenta como interés de clientes.
+      .andWhere("COALESCE(event.payload->>'rol', '') NOT IN (:...internalRoles)", {
+        internalRoles: [UserRole.ADMIN, UserRole.ASISTENTE],
+      });
 
     if (start) {
       qb.andWhere('event.createdAt >= :start', { start });
@@ -372,7 +443,8 @@ export class AnalyticsService {
       .groupBy("event.payload->>'productName'")
       .addGroupBy("event.payload->>'productId'")
       .addGroupBy("event.payload->>'productSlug'")
-      .orderBy('views', 'DESC')
+      .orderBy('unique_viewers', 'DESC')
+      .addOrderBy('views', 'DESC')
       .limit(limit)
       .getRawMany();
 
@@ -381,6 +453,7 @@ export class AnalyticsService {
       productName: r.productName,
       productSlug: r.productSlug,
       views: parseInt(r.views),
+      uniqueViewers: parseInt(r.unique_viewers),
     }));
   }
 
@@ -393,7 +466,10 @@ export class AnalyticsService {
       .addSelect('COUNT(*)', 'count')
       .where('event.eventType = :type', { type: 'search' })
       .andWhere('event.userId IS NULL')
-      .andWhere("event.payload->>'query' IS NOT NULL");
+      .andWhere("event.payload->>'query' IS NOT NULL")
+      .andWhere("COALESCE(event.payload->>'rol', '') NOT IN (:...internalRoles)", {
+        internalRoles: [UserRole.ADMIN, UserRole.ASISTENTE],
+      });
 
     if (start) {
       qb.andWhere('event.createdAt >= :start', { start });

@@ -10,7 +10,6 @@ import { RolesGuard } from 'src/guards/roles.guard';
 import { AuthModule } from 'src/auth/auth.module';
 import { ImageModule } from '../image/image.module';
 import { CategoryModule } from '../category/category.module';
-import { AnalyticsModule } from '../analytics/analytics.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { BultoModule } from '../bulto/bulto.module';
 
@@ -21,7 +20,6 @@ import { BultoModule } from '../bulto/bulto.module';
     AuthModule,
     forwardRef(() => ImageModule),
     CategoryModule,
-    AnalyticsModule,
     PricingModule,
     BultoModule,
   ],

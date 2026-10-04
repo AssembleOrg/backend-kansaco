@@ -7,7 +7,8 @@ import { Roles } from '../decorators/roles.decorator';
 import { UserRole } from '../user/user.enum';
 import { formatDateISO } from '../helpers/date.helper';
 
-@Controller('analytics')
+// 'reportes' es alias: uBlock bloquea URLs con /analytics/events.
+@Controller(['analytics', 'reportes'])
 @ApiTags('Kansaco - Analytics')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
@@ -35,7 +36,7 @@ export class AnalyticsController {
     return { stats, topSearches, anonymousSearches, topProducts, bottomProducts, topViewed };
   }
 
-  @Get('events')
+  @Get(['events', 'registros'])
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'userId', required: false, type: String })
@@ -43,6 +44,7 @@ export class AnalyticsController {
   @ApiQuery({ name: 'dateFrom', required: false, type: String })
   @ApiQuery({ name: 'dateTo', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'rol', required: false, enum: UserRole })
   async getEvents(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -51,6 +53,7 @@ export class AnalyticsController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('search') search?: string,
+    @Query('rol') rol?: string,
   ) {
     const result = await this.analyticsService.getEvents({
       page: page ? parseInt(page) : undefined,
@@ -60,6 +63,7 @@ export class AnalyticsController {
       dateFrom,
       dateTo,
       search,
+      rol,
     });
 
     return {
@@ -149,6 +153,10 @@ export class AnalyticsController {
     return {
       ...result,
       lastLogin: formatDateISO(result.lastLogin) || null,
+      recentEvents: result.recentEvents.map((event) => ({
+        ...event,
+        createdAt: formatDateISO(event.createdAt) || '',
+      })),
     };
   }
 }
