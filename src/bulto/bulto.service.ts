@@ -290,9 +290,14 @@ export class BultoService {
   }
 
   /** Staff: { productId: { presentación: gama } } de todo el catálogo. */
-  async gamasPorPresentacion(): Promise<Record<number, Record<string, string>>> {
+  async gamasPorPresentacion(productIds?: number[]): Promise<Record<number, Record<string, string>>> {
+    if (productIds?.length === 0) return {};
     const rows: Array<{ productId: number; presentation: string; gama: string }> =
-      await this.dataSource.query(`SELECT "productId", "presentation", "gama" FROM "product_gama"`);
+      await this.dataSource.query(
+        `SELECT "productId", "presentation", "gama" FROM "product_gama"
+          ${productIds ? 'WHERE "productId" = ANY($1)' : ''}`,
+        productIds ? [productIds] : [],
+      );
     const out: Record<number, Record<string, string>> = {};
     for (const r of rows) (out[r.productId] ??= {})[r.presentation] = r.gama;
     return out;

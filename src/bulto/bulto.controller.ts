@@ -87,8 +87,14 @@ export class BultoController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @ApiBearerAuth()
-  async gamasPorPresentacion() {
-    return this.bultoService.gamasPorPresentacion();
+  async gamasPorPresentacion(@Query('ids') ids?: string) {
+    // ?ids=1,2 → solo esos productos (la ficha pide uno); sin ids → todo (lista del admin).
+    if (ids === undefined) return this.bultoService.gamasPorPresentacion();
+    const list = [...new Set(ids.split(',').map(Number))].filter(
+      (n) => Number.isInteger(n) && n > 0,
+    );
+    if (list.length > 500) throw new BadRequestException('Máximo 500 productos');
+    return this.bultoService.gamasPorPresentacion(list);
   }
 
   /** Staff: fija o quita (gama: null) la gama de una presentación. */
