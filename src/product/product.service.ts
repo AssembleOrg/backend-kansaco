@@ -122,6 +122,10 @@ export class ProductoService {
         qb.andWhere(`product.${key} = :${paramName}`, {
           [paramName]: value,
         });
+      } else if (key === 'slug') {
+        // Slug es único: igualdad exacta. Con LIKE '%slug%' devolvía el primer
+        // producto (por id) cuyo slug lo contenía, no necesariamente este.
+        qb.andWhere(`product.slug = :${paramName}`, { [paramName]: value });
       } else {
         // Para campos de texto, usar LOWER() para búsqueda case-insensitive
         qb.andWhere(`LOWER(product.${key}) LIKE LOWER(:${paramName})`, {
