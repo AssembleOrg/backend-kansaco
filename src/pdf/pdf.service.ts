@@ -8,6 +8,7 @@ import { PresupuestoData, PresupuestoProducto } from './presupuesto.types';
 import { Order, OrderShippingInfo } from '../order/order.entity';
 import { formatDireccion, modalidadLabel } from '../order/shipping.util';
 import { presentacionConBultos } from '../bulto/bulto.util';
+import { archivosDeChromium, soltarCache } from './cache-chromium';
 const sharp = require('sharp');
 
 /** Arma el bloque de envío del presupuesto desde la modalidad de la orden. */
@@ -27,6 +28,8 @@ function buildEnvioPresupuesto(
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
   private template: Handlebars.TemplateDelegate;
+  /** PDFs generándose ahora: la caché de Chromium la suelta el último. */
+  private pdfsEnCurso = 0;
 
   constructor() {
     // Cargar y compilar la plantilla Handlebars
@@ -147,40 +150,70 @@ export class PdfService {
       );
     }
 
-    const browser = await puppeteer.launch(launchOptions);
-    // finally: si setContent/pdf tiran (timeout, HTML roto), sin esto el
-    // proceso de Chromium queda huérfano (~100MB+ c/u) hasta el próximo deploy.
+    this.pdfsEnCurso += 1;
+    let archivosChromium: string[] = [];
     try {
-      const page = await browser.newPage();
+      const browser = await puppeteer.launch(launchOptions);
+      // finally: si setContent/pdf tiran (timeout, HTML roto), sin esto el
+      // proceso de Chromium queda huérfano (~100MB+ c/u) hasta el próximo deploy.
+      try {
+        const page = await browser.newPage();
 
-      await page.setViewport({
-        width: 794,
-        height: 1123,
-      });
+        await page.setViewport({
+          width: 794,
+          height: 1123,
+        });
 
-      await page.setContent(html, {
-        waitUntil: 'load',
-        timeout: 30000,
-      });
+        await page.setContent(html, {
+          waitUntil: 'load',
+          timeout: 30000,
+        });
 
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '10mm',
-          right: '10mm',
-          bottom: '10mm',
-          left: '10mm',
-        },
-      });
+        const pdf = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: {
+            top: '10mm',
+            right: '10mm',
+            bottom: '10mm',
+            left: '10mm',
+          },
+        });
 
-      this.logger.log(`PDF generado: ${label}`);
-      return Buffer.from(pdf);
+        this.logger.log(`PDF generado: ${label}`);
+        return Buffer.from(pdf);
+      } finally {
+        const proceso = browser.process();
+        archivosChromium = archivosDeChromium(proceso?.pid);
+        if (proceso?.spawnfile) {
+          archivosChromium.push(path.dirname(proceso.spawnfile));
+        }
+        await browser
+          .close()
+          .catch((closeError: any) =>
+            this.logger.warn(`Error cerrando Chromium: ${closeError.message}`),
+          );
+      }
     } finally {
-      await browser.close().catch((closeError: any) =>
-        this.logger.warn(`Error cerrando Chromium: ${closeError.message}`),
-      );
+      this.pdfsEnCurso -= 1;
+      this.soltarCacheDeChromium(archivosChromium);
     }
+  }
+
+  /**
+   * Suelta la caché del kernel que dejó Chromium (~400MB que Railway cobra
+   * como RAM, ver cache-chromium.ts). Espera a que terminen de salir los
+   * procesos hijos, porque las páginas que siguen mapeadas no se sueltan, y
+   * si hay otro PDF en curso lo deja para el último que termine.
+   */
+  private soltarCacheDeChromium(archivos: string[]): void {
+    if (archivos.length === 0) return;
+    setTimeout(() => {
+      if (this.pdfsEnCurso > 0) return;
+      soltarCache(archivos, (mensaje) =>
+        this.logger.debug(`No se pudo soltar la caché de Chromium: ${mensaje}`),
+      );
+    }, 2_000).unref();
   }
 
   /**
