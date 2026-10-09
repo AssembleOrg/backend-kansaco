@@ -7,6 +7,7 @@ import { SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { PresupuestoData, PresupuestoProducto } from './presupuesto.types';
 import { Order, OrderShippingInfo } from '../order/order.entity';
 import { formatDireccion, modalidadLabel } from '../order/shipping.util';
+import { cantidadEnBultos } from './bultos';
 const sharp = require('sharp');
 
 /** Arma el bloque de envío del presupuesto desde la modalidad de la orden. */
@@ -107,7 +108,13 @@ export class PdfService {
    */
   async renderPresupuesto(data: PresupuestoData): Promise<Buffer> {
     try {
-      const html = this.template(data);
+      const html = this.template({
+        ...data,
+        productos: data.productos.map((p) => ({
+          ...p,
+          cantidadTexto: cantidadEnBultos(p.cantidad, p.presentacion),
+        })),
+      });
 
       const launchOptions: any = {
         headless: true,

@@ -1,5 +1,7 @@
 export interface PresupuestoProducto {
   cantidad: number;
+  /** Lo que muestra la columna: en bultos si la presentación lo trae ("4X8 +2u"). */
+  cantidadTexto?: string;
   nombre: string;
   presentacion: string;
   precioUnitario: number;
