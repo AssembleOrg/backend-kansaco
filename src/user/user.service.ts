@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -167,9 +168,21 @@ export class UserService {
     return this.update(id, changes);
   }
 
-  /** Cambia la categoría/rol de un usuario. Usado por admin para "aprobar" cuentas B2B. */
-  async changeRole(id: string, rol: UserRole) {
-    await this.findOne(id); // valida existencia (lanza 404 si no existe)
+  /**
+   * Cambia la categoría/rol de un usuario ("aprobar" cuentas B2B).
+   * Quien no es ADMIN (la asistente) sólo mueve cuentas de clientes entre
+   * categorías de cliente: no crea ni toca cuentas de staff.
+   */
+  async changeRole(id: string, rol: UserRole, actorId: string) {
+    const user = await this.findOne(id); // valida existencia (lanza 404 si no existe)
+    // Rol del actor desde la BD: el del JWT puede estar viejo.
+    const actor = await this.findOne(actorId);
+    const esStaff = (r: UserRole) => r === UserRole.ADMIN || r === UserRole.ASISTENTE;
+    if (actor.rol !== UserRole.ADMIN && (esStaff(user.rol) || esStaff(rol))) {
+      throw new ForbiddenException(
+        'Sólo un administrador puede asignar o modificar cuentas de staff',
+      );
+    }
     await this.userRepository.update(id, { rol });
     return this.findOne(id);
   }

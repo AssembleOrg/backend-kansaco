@@ -18,6 +18,7 @@ import { SendOrderEmailDto, OrderItemDto } from './dto/send-order-email.dto';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { OrderService } from '../order/order.service';
 import { formatDireccion, modalidadLabel } from '../order/shipping.util';
+import { shortId } from '../order/order-export';
 import { RabbitmqClientService } from '../rabbitmq/rabbitmq-client.service';
 import { ConfigService } from '@nestjs/config';
 import { CustomerType } from './dto/send-order-email.dto';
@@ -273,12 +274,10 @@ Fecha: ${new Date().toLocaleDateString('es-AR', {
   }
 
   /**
-   * Genera un número de presupuesto basado en el año y el ID de la orden
+   * Número de presupuesto = nº corto del pedido (el mismo de Mis pedidos, los
+   * avisos y los exports; se puede pegar en el buscador del panel).
    */
   private generatePresupuestoNumber(orderId: string): string {
-    const year = new Date().getFullYear();
-    // Usar los últimos 3 caracteres del UUID para crear un número único
-    const shortId = orderId.split('-').pop()?.substring(0, 3).toUpperCase() || '001';
-    return `${year}-${shortId}`;
+    return shortId(orderId);
   }
 }

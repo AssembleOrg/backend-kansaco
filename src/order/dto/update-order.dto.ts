@@ -44,4 +44,11 @@ export class UpdateOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nota interna del staff (solo ADMIN/ASISTENTE; el cliente nunca la ve)',
+  })
+  @IsOptional()
+  @IsString()
+  internalNotes?: string;
 }

@@ -32,11 +32,11 @@ describe('parseOrderFilters', () => {
   });
   it('sin estado, el rango aplica a la fecha de creación', () => {
     expect(parseOrderFilters({ from: '2026-08-01' }).dateField).toBe('created');
-    expect(parseOrderFilters({ status: 'COMPLETADO', dateField: 'created' }).dateField).toBe('created');
+    expect(parseOrderFilters({ status: 'ENVIADO', dateField: 'created' }).dateField).toBe('created');
   });
   it('parsea estados múltiples; con estado, el rango aplica a la fecha de estado', () => {
-    const f = parseOrderFilters({ status: 'COMPLETADO,CANCELADO', from: '2026-08-01', to: '2026-08-31' });
-    expect(f.status).toEqual(['COMPLETADO', 'CANCELADO']);
+    const f = parseOrderFilters({ status: 'ENVIADO,CANCELADO', from: '2026-08-01', to: '2026-08-31' });
+    expect(f.status).toEqual(['ENVIADO', 'CANCELADO']);
     expect(f.dateField).toBe('status');
     expect(f.start).toBeInstanceOf(Date);
   });

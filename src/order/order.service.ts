@@ -13,6 +13,8 @@ import { Product } from '../product/product.entity';
 import { User } from '../user/user.entity';
 import { PricingService } from '../pricing/pricing.service';
 import { BultoService } from '../bulto/bulto.service';
+import { NotificationService } from '../notification/notification.service';
+import { describeItemChanges, itemsNotification, statusNotification } from './order-changes';
 
 export const EXPORT_MAX = 5000;
 
@@ -27,6 +29,7 @@ export class OrderService {
     private userRepository: Repository<User>,
     private readonly pricingService: PricingService,
     private readonly bultoService: BultoService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(userId: string, orderData: SendOrderEmailDto): Promise<Order> {
@@ -51,8 +54,15 @@ export class OrderService {
     });
   }
 
-  async findOne(id: string): Promise<Order> {
-    const order = await this.orderRepository.findOne({ where: { id } });
+  /** withInternalNotes: solo para el staff (la nota interna nunca va al cliente). */
+  async findOne(id: string, withInternalNotes = false): Promise<Order> {
+    const order = withInternalNotes
+      ? await this.orderRepository
+          .createQueryBuilder('o')
+          .addSelect('o.internalNotes')
+          .where('o.id = :id', { id })
+          .getOne()
+      : await this.orderRepository.findOne({ where: { id } });
     if (!order) {
       throw new NotFoundException(`Order with ID ${id} not found`);
     }
@@ -202,7 +212,8 @@ export class OrderService {
   }
 
   private filteredQuery(f: OrderFilters): SelectQueryBuilder<Order> {
-    const qb = this.orderRepository.createQueryBuilder('o');
+    // Listado y export del panel (solo staff): incluyen la nota interna.
+    const qb = this.orderRepository.createQueryBuilder('o').addSelect('o.internalNotes');
     if (f.status?.length) qb.andWhere('o.status IN (:...status)', { status: f.status });
     if (f.categoria) {
       qb.andWhere('o.userId IN (SELECT u.id FROM "user" u WHERE u.rol = :rol)', { rol: f.categoria });
@@ -213,7 +224,8 @@ export class OrderService {
     const col = this.dateColumn(f);
     if (f.start) qb.andWhere(`${col} >= :start`, { start: f.start });
     if (f.end) qb.andWhere(`${col} < :end`, { end: f.end });
-    const q = f.q?.trim();
+    // Sin el "#" inicial: así se puede pegar el nº de pedido tal como se muestra.
+    const q = f.q?.trim().replace(/^#/, '');
     if (q) {
       qb.andWhere(
         new Brackets((w) => {
@@ -234,13 +246,33 @@ export class OrderService {
     return qb;
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
-    const order = await this.findOne(id);
-    if (order.status !== status) {
-      order.status = status;
-      order.statusChangedAt = now();
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    actorId: string,
+    motivo?: string,
+  ): Promise<Order> {
+    const order = await this.findOne(id, true);
+    if (order.status === status) return order;
+    order.status = status;
+    order.statusChangedAt = now();
+    // Motivo de cancelación: queda anexado a la nota interna, en el mismo
+    // guardado. No se le informa al cliente.
+    const motivoCancelacion = status === OrderStatus.CANCELADO ? motivo?.trim() : undefined;
+    if (motivoCancelacion) {
+      const line = `[CANCELADO ${now().toFormat('d/M/yyyy')}] ${motivoCancelacion}`;
+      order.internalNotes = order.internalNotes?.trim()
+        ? `${order.internalNotes.trim()}\n${line}`
+        : line;
     }
-    return this.orderRepository.save(order);
+    const saved = await this.orderRepository.save(order);
+    const aviso = statusNotification(order, status);
+    // Sin await: el aviso (mail incluido) no demora ni rompe el cambio de estado.
+    // No se avisa al staff por pedidos que cargó a su propio nombre.
+    if (aviso && order.userId !== actorId) {
+      void this.notificationService.notify(order.userId, aviso);
+    }
+    return saved;
   }
 
   async update(
@@ -249,10 +281,14 @@ export class OrderService {
     userId: string,
     userRole: UserRole,
   ): Promise<Order> {
-    const order = await this.findOne(id);
-
     const isStaff =
       userRole === UserRole.ADMIN || userRole === UserRole.ASISTENTE;
+
+    if (updateData.internalNotes !== undefined && !isStaff) {
+      throw new ForbiddenException('No tienes permisos para editar esta orden');
+    }
+
+    const order = await this.findOne(id, isStaff);
 
     // Validación 1: Verificar propiedad de la orden
     // Si no es ADMIN/ASISTENTE, solo puede editar sus propias órdenes
@@ -264,11 +300,16 @@ export class OrderService {
       }
     }
 
-    // El staff (ADMIN/ASISTENTE) puede editar SOLO las notas en cualquier estado
-    // (p. ej. registrar el motivo de una cancelación). El resto de campos y
-    // cualquier edición de un cliente siguen restringidos a órdenes PENDIENTE.
+    // La nota del cliente (`notes`) la cambia solo el dueño del pedido: si la
+    // manda el staff sobre un pedido ajeno, se ignora (no pisa lo que escribió
+    // el cliente). El staff tiene su propia nota interna.
+    const notes = order.userId === userId ? updateData.notes : undefined;
+
+    // El staff puede editar SOLO la nota interna en cualquier estado. El resto
+    // de campos y cualquier edición de un cliente siguen restringidos a PENDIENTE.
     const onlyEditsNotes =
-      updateData.notes !== undefined &&
+      updateData.internalNotes !== undefined &&
+      notes === undefined &&
       updateData.contactInfo === undefined &&
       updateData.businessInfo === undefined &&
       updateData.items === undefined;
@@ -291,17 +332,29 @@ export class OrderService {
       order.businessInfo = { ...order.businessInfo, ...updateData.businessInfo };
     }
 
+    // Cambios de productos hechos por el staff sobre el pedido de un cliente: se le avisa.
+    let itemChanges: string[] = [];
     if (updateData.items) {
+      const before = order.items;
       order.items = await this.pricedItems(order, updateData.items, isStaff);
       // Recalcular total si se modificaron items
       order.totalAmount = this.calculateTotal(order.items);
+      if (order.userId !== userId) itemChanges = describeItemChanges(before, order.items);
     }
 
-    if (updateData.notes !== undefined) {
-      order.notes = updateData.notes;
+    if (notes !== undefined) {
+      order.notes = notes;
     }
 
-    return this.orderRepository.save(order);
+    if (updateData.internalNotes !== undefined) {
+      order.internalNotes = updateData.internalNotes;
+    }
+
+    const saved = await this.orderRepository.save(order);
+    if (itemChanges.length) {
+      void this.notificationService.notify(order.userId, itemsNotification(order.id, itemChanges));
+    }
+    return saved;
   }
 
   /**

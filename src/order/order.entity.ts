@@ -96,8 +96,17 @@ export class Order {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   totalAmount?: number;
 
+  /** Nota del cliente (checkout). La edita solo el dueño del pedido; sale en PDF y mails. */
   @Column({ type: 'text', nullable: true })
   notes?: string;
+
+  /**
+   * Nota interna del staff (incluye el motivo de cancelación). select: false:
+   * ninguna consulta la devuelve salvo que la pida con addSelect, así los
+   * endpoints del cliente no la exponen por descuido.
+   */
+  @Column({ type: 'text', nullable: true, select: false })
+  internalNotes?: string;
 
   @CreateDateColumn({
     type: 'timestamp',

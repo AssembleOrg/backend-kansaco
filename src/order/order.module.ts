@@ -10,6 +10,7 @@ import { UserModule } from '../user/user.module';
 import { PdfModule } from '../pdf/pdf.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { BultoModule } from '../bulto/bulto.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { BultoModule } from '../bulto/bulto.module';
     PdfModule,
     PricingModule,
     BultoModule,
+    NotificationModule,
   ],
   controllers: [OrderController],
   providers: [OrderService],

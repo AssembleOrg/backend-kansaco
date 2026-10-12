@@ -50,6 +50,8 @@ import { SubmissionModule } from './submission/submission.module';
 import { ContactSubmission } from './submission/submission.entity';
 import { BultoModule } from './bulto/bulto.module';
 import { Bulto, ProductBulto } from './bulto/bulto.entity';
+import { NotificationModule } from './notification/notification.module';
+import { Notification } from './notification/notification.entity';
 
 @Module({
   imports: [
@@ -95,6 +97,7 @@ import { Bulto, ProductBulto } from './bulto/bulto.entity';
           ContactSubmission,
           Bulto,
           ProductBulto,
+          Notification,
         ],
         synchronize: false,
       }),
@@ -131,6 +134,7 @@ import { Bulto, ProductBulto } from './bulto/bulto.entity';
     PricingModule,
     SubmissionModule,
     BultoModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [

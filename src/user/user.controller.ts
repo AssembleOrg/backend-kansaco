@@ -84,14 +84,18 @@ export class UserController {
 
   @Patch('/:id/rol')
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Cambiar la categoría/rol de un usuario (solo ADMIN)' })
+  @ApiOperation({
+    summary:
+      'Cambiar la categoría/rol de un usuario. ASISTENTE: sólo categorías de cliente, sobre cuentas de clientes.',
+  })
   async changeRole(
+    @Request() req: { user: { id: string } },
     @Param('id') id: string,
     @Body() changeRoleDto: ChangeRoleDto,
   ) {
-    return this.userService.changeRole(id, changeRoleDto.rol);
+    return this.userService.changeRole(id, changeRoleDto.rol, req.user.id);
   }
 
   @Patch('/:id/bloqueo')

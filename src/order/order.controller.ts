@@ -34,7 +34,7 @@ import { PaginatedResponse } from '../product/dto/pagination.dto';
 import { PdfService } from '../pdf/pdf.service';
 import { OrderStatus } from './order.enum';
 import { describeFilters, parseOrderFilters } from './order-filters';
-import { ordersReportHtml, ordersToXlsx } from './order-export';
+import { ordersReportHtml, ordersToXlsx, shortId } from './order-export';
 
 @ApiTags('Order')
 @Controller('order')
@@ -138,7 +138,7 @@ export class OrderController {
                   id: { type: 'string', example: '50106563-b3c7-440d-a98b-171c70f7c8d2' },
                   userId: { type: 'string', example: 'd641b37b-360f-46e8-996f-fcd5d20b4cf5' },
                   customerType: { type: 'string', enum: ['CLIENTE_MINORISTA', 'CLIENTE_MAYORISTA'], example: 'CLIENTE_MINORISTA' },
-                  status: { type: 'string', enum: ['PENDIENTE', 'PROCESANDO', 'ENVIADO', 'COMPLETADO', 'CANCELADO'], example: 'PENDIENTE' },
+                  status: { type: 'string', enum: ['PENDIENTE', 'RECIBIDO', 'PROCESANDO', 'ENVIADO', 'CANCELADO'], example: 'PENDIENTE' },
                   contactInfo: {
                     type: 'object',
                     properties: {
@@ -189,7 +189,7 @@ export class OrderController {
       },
     },
   })
-  @ApiQuery({ name: 'status', required: false, description: 'Estados separados por coma (PENDIENTE,COMPLETADO…)' })
+  @ApiQuery({ name: 'status', required: false, description: 'Estados separados por coma (PENDIENTE,ENVIADO…)' })
   @ApiQuery({ name: 'dateField', required: false, enum: ['status', 'created'], description: 'Fecha del rango. Default: con estado → fecha en que pasó a ese estado; sin estado → creación' })
   @ApiQuery({ name: 'from', required: false, description: 'yyyy-MM-dd, hora AR, inclusivo' })
   @ApiQuery({ name: 'to', required: false, description: 'yyyy-MM-dd, hora AR, inclusivo' })
@@ -336,13 +336,11 @@ export class OrderController {
   }
 
   /**
-   * Genera un número de presupuesto basado en el año y el ID de la orden
+   * Número de presupuesto = nº corto del pedido (el mismo de Mis pedidos, los
+   * avisos y los exports; se puede pegar en el buscador del panel).
    */
   private generatePresupuestoNumber(orderId: string): string {
-    const year = new Date().getFullYear();
-    // Usar los últimos 3 caracteres del UUID para crear un número único
-    const shortId = orderId.split('-').pop()?.substring(0, 3).toUpperCase() || '001';
-    return `${year}-${shortId}`;
+    return shortId(orderId);
   }
 
   @Get(':id')
@@ -354,12 +352,12 @@ export class OrderController {
     @Param('id') id: string,
     @Request() req: { user: { id: string; rol: UserRole } },
   ): Promise<{ status: string; data: Order }> {
-    const order = await this.orderService.findOne(id);
-
     // Verificar ownership: el usuario debe ser dueño de la orden o ser Admin/Asistente
     // Nota: el AuthGuard setea req.user.rol (español), no .role.
-    const isOwner = order.userId === req.user.id;
     const isAdminOrAsistente = req.user.rol === UserRole.ADMIN || req.user.rol === UserRole.ASISTENTE;
+    // La nota interna solo viaja en la respuesta al staff.
+    const order = await this.orderService.findOne(id, isAdminOrAsistente);
+    const isOwner = order.userId === req.user.id;
 
     if (!isOwner && !isAdminOrAsistente) {
       throw new ForbiddenException('No tienes permiso para ver esta orden');
@@ -377,15 +375,21 @@ export class OrderController {
   async updateStatus(
     @Param('id') id: string,
     @Body() updateStatusDto: UpdateOrderStatusDto,
+    @Request() req: { user: { id: string } },
   ): Promise<{ status: string; data: Order }> {
-    const order = await this.orderService.updateStatus(id, updateStatusDto.status);
+    const order = await this.orderService.updateStatus(
+      id,
+      updateStatusDto.status,
+      req.user.id,
+      updateStatusDto.motivo,
+    );
     return { status: 'success', data: order };
   }
 
   @Patch(':id')
   @ApiOperation({
     summary:
-      'Actualizar una orden (solo PENDIENTE; el staff puede editar solo notas en cualquier estado)',
+      'Actualizar una orden (solo PENDIENTE; el staff puede editar solo la nota interna en cualquier estado)',
   })
   @ApiResponse({ status: 200, description: 'Orden actualizada correctamente' })
   @ApiResponse({ status: 403, description: 'No autorizado para editar esta orden' })

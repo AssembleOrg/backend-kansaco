@@ -10,9 +10,9 @@ import { now } from '../helpers/date.helper';
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   PENDIENTE: 'Pendiente',
-  PROCESANDO: 'Procesando',
+  RECIBIDO: 'Recibido',
+  PROCESANDO: 'En proceso',
   ENVIADO: 'Enviado',
-  COMPLETADO: 'Completado',
   CANCELADO: 'Cancelado',
 };
 

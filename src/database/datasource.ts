@@ -34,6 +34,7 @@ export default new DataSource({
     path.join(__dirname, '..', 'pricing', '**', '*.entity{.ts,.js}'),
     path.join(__dirname, '..', 'submission', '**', '*.entity{.ts,.js}'),
     path.join(__dirname, '..', 'bulto', '**', '*.entity{.ts,.js}'),
+    path.join(__dirname, '..', 'notification', '**', '*.entity{.ts,.js}'),
   ],
   synchronize: false,
   logging: false,
