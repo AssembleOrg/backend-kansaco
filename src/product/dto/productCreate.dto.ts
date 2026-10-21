@@ -12,8 +12,8 @@ export class ProductCreate {
   @ApiProperty({
     description: 'Product Name',
   })
-  @IsNotEmpty()
-  @MaxLength(120)
+  @IsNotEmpty({ message: 'El nombre es obligatorio' })
+  @MaxLength(120, { message: 'El nombre no puede superar los 120 caracteres' })
   name: string;
 
   @ApiProperty({
@@ -26,8 +26,9 @@ export class ProductCreate {
   @ApiProperty({
     description: 'Product SKU',
   })
-  @IsNotEmpty()
-  @MaxLength(120)
+  // Opcional: el formulario manda '' cuando no se carga (la columna tiene default '').
+  @IsString()
+  @MaxLength(120, { message: 'El SKU no puede superar los 120 caracteres' })
   @IsOptional()
   sku: string;
 
@@ -61,22 +62,26 @@ export class ProductCreate {
   @ApiProperty({
     description: 'Product Description',
   })
-  @IsNotEmpty()
-  @MaxLength(10000)
+  @IsString()
+  @MaxLength(10000, { message: 'La descripción no puede superar los 10000 caracteres' })
+  @IsOptional()
   description: string;
 
   @ApiProperty({
     description: 'Product Presentation',
   })
-  @IsNotEmpty()
-  @MaxLength(10000)
+  @IsString()
+  @MaxLength(10000, { message: 'La presentación no puede superar los 10000 caracteres' })
+  @IsOptional()
   presentation: string;
 
   @ApiProperty({
     description: 'Product Application',
   })
-  @IsNotEmpty()
-  @MaxLength(120)
+  // La columna es varchar(90): con 120 pasaba la validación y fallaba el INSERT.
+  @IsString()
+  @MaxLength(90, { message: 'La aplicación no puede superar los 90 caracteres' })
+  @IsOptional()
   aplication: string;
 
   @ApiProperty({
