@@ -332,7 +332,14 @@ export class ProductoService {
       const repo = manager.getRepository(Product);
 
       const slug = await this.generateUniqueSlug(body.name ?? '', manager);
-      const bodyWithSlug: Partial<Product> = { ...body, slug };
+      // Columnas NOT NULL sin default: si no vienen, se guardan vacías.
+      const bodyWithSlug: Partial<Product> = {
+        ...body,
+        description: body.description ?? '',
+        presentation: body.presentation ?? '',
+        aplication: body.aplication ?? '',
+        slug,
+      };
       if (categories !== undefined) {
         bodyWithSlug.category = body.category as string[];
       }
