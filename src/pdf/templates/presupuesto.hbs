@@ -149,7 +149,6 @@
 
       .products-table td.num {
         text-align: right;
-        white-space: nowrap;
       }
 
       .products-table tbody tr:nth-child(even) {
@@ -314,8 +313,8 @@
     <table class="products-table">
       <thead>
         <tr>
-          <th style="width: 8%">Cant.</th>
-          <th style="width: 42%">Producto</th>
+          <th style="width: 18%">Cant.</th>
+          <th style="width: 32%">Producto</th>
           <th style="width: 15%">Presentación</th>
           <th style="width: 15%">P. Unit.</th>
           <th style="width: 20%">Subtotal</th>
@@ -324,7 +323,9 @@
       <tbody>
         {{#each productos}}
         <tr>
-          <td class="num">{{cantidad}}</td>
+          <td class="num">
+            {{#if bultos}}{{bultos}}<div class="small">({{cantidad}} u.)</div>{{else}}{{cantidad}}{{/if}}
+          </td>
           <td>{{nombre}}</td>
           <td>{{presentacion}}</td>
           <td class="num">-</td>

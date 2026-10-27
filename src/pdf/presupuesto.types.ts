@@ -1,5 +1,7 @@
 export interface PresupuestoProducto {
   cantidad: number;
+  /** "4 × Caja x 8"; vacío si el producto no tiene bultos. */
+  bultos?: string;
   nombre: string;
   presentacion: string;
   precioUnitario: number;

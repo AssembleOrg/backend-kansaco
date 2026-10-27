@@ -36,14 +36,14 @@ export const describirBultos = (quantity: number, bultos?: BultoLike[] | null): 
   return partes.join(' + ');
 };
 
-/** "Bidón 1 Litro · 2 × Caja x 8 · SKU 0050002700" para PDF y emails. */
-export const presentacionConBultos = (item: {
-  presentation?: string;
-  quantity: number;
-  bultos?: BultoLike[];
-  skus?: string[];
-}): string => {
-  const desc = describirBultos(item.quantity, item.bultos);
+/** "Bidón 1 Litro · SKU 0050002700" para PDF y emails (los bultos van en la cantidad). */
+export const presentacionConSkus = (item: { presentation?: string; skus?: string[] }): string => {
   const skus = item.skus?.length ? `SKU ${item.skus.join(' / ')}` : '';
-  return [item.presentation, desc, skus].filter(Boolean).join(' · ');
+  return [item.presentation, skus].filter(Boolean).join(' · ');
+};
+
+/** Columna cantidad: "4 × Caja x 8 (32 u.)"; sin bultos → "32". */
+export const cantidadConBultos = (quantity: number, bultos?: BultoLike[] | null): string => {
+  const desc = describirBultos(quantity, bultos);
+  return desc ? `${desc} (${quantity} u.)` : String(quantity);
 };

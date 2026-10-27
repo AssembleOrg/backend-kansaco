@@ -7,7 +7,7 @@ import { SendOrderEmailDto } from '../email/dto/send-order-email.dto';
 import { PresupuestoData, PresupuestoProducto } from './presupuesto.types';
 import { Order, OrderShippingInfo } from '../order/order.entity';
 import { formatDireccion, modalidadLabel } from '../order/shipping.util';
-import { presentacionConBultos } from '../bulto/bulto.util';
+import { describirBultos, presentacionConSkus } from '../bulto/bulto.util';
 import { archivosDeChromium, soltarCache } from './cache-chromium';
 const sharp = require('sharp');
 
@@ -284,8 +284,9 @@ export class PdfService {
     // Convertir productos
     const productos: PresupuestoProducto[] = orderData.items.map((item) => ({
       cantidad: item.quantity,
+      bultos: describirBultos(item.quantity, item.bultos),
       nombre: item.productName,
-      presentacion: presentacionConBultos(item) || '-',
+      presentacion: presentacionConSkus(item) || '-',
       precioUnitario: item.unitPrice || 0,
       subtotal: (item.unitPrice || 0) * item.quantity,
     }));

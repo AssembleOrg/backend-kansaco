@@ -1,4 +1,4 @@
-import { describirBultos, presentacionConBultos, splitPresentations } from './bulto.util';
+import { cantidadConBultos, describirBultos, presentacionConSkus, splitPresentations } from './bulto.util';
 
 const caja8 = { nombre: 'Caja x 8', unidades: 8 };
 const caja24 = { nombre: 'Caja x 24', unidades: 24 };
@@ -22,11 +22,15 @@ describe('describirBultos', () => {
   });
 });
 
-describe('presentacionConBultos / splitPresentations', () => {
-  it('concatena presentación y desglose', () => {
-    expect(presentacionConBultos({ presentation: 'Bidón 1 Litro', quantity: 16, bultos: [caja8] }))
-      .toBe('Bidón 1 Litro · 2 × Caja x 8');
-    expect(presentacionConBultos({ presentation: 'Balde 20 Litros', quantity: 3 })).toBe('Balde 20 Litros');
+describe('cantidadConBultos / presentacionConSkus / splitPresentations', () => {
+  it('cantidad en bultos con las unidades al lado', () => {
+    expect(cantidadConBultos(32, [caja8])).toBe('4 × Caja x 8 (32 u.)');
+    expect(cantidadConBultos(3, undefined)).toBe('3');
+  });
+  it('presentación + SKU, sin bultos', () => {
+    expect(presentacionConSkus({ presentation: 'Bidón 1 Litro', skus: ['0050002700'] }))
+      .toBe('Bidón 1 Litro · SKU 0050002700');
+    expect(presentacionConSkus({ presentation: 'Balde 20 Litros' })).toBe('Balde 20 Litros');
   });
   it('split igual al carrito', () => {
     expect(splitPresentations(' Bidón 1 Litro, ,Bidón 4 Litros ')).toEqual(['Bidón 1 Litro', 'Bidón 4 Litros']);
