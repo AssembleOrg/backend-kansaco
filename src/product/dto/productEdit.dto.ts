@@ -1,5 +1,5 @@
 import { ApiProperty, ApiSchema } from '@nestjs/swagger';
-import { IsBoolean, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Allow, IsBoolean, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 
 @ApiSchema({ name: 'ProductoEditDto' })
 export class ProductEdit {
@@ -87,4 +87,12 @@ export class ProductEdit {
   @IsNumber()
   @IsOptional()
   price: number;
+
+  /**
+   * Sólo lectura: viene en la respuesta y el panel la reenvía al editar. Se
+   * acepta para no dar 400 y se descarta (la ficha va por su endpoint).
+   */
+  @Allow()
+  @IsOptional()
+  technicalSheet?: unknown;
 }

@@ -152,23 +152,35 @@ export class DigitalOceanService {
     fileName: string,
     fileContent: Buffer,
     contentType?: string,
+    options: { private?: boolean } = {},
   ): Promise<PutObjectCommandOutput> {
     try {
       // Determinar el Content-Type basado en la extensión del archivo
       const detectedContentType = contentType || this.getContentType(fileName);
-      
-      const params = {
-        Bucket: this.bucketName,
-        Key: fileName,
-        Body: fileContent,
-        ACL: ObjectCannedACL.public_read,
-        ContentType: detectedContentType,
-        // Headers de cache para reducir bandwidth
-        // Cache-Control: max-age=31536000 = 1 año (las imágenes no cambian frecuentemente)
-        // Expires: fecha de expiración (1 año desde ahora)
-        CacheControl: 'public, max-age=31536000, immutable',
-        Expires: new Date(Date.now() + 31536000 * 1000), // 1 año desde ahora
-      };
+
+      // Privado: no se puede leer por la URL pública/CDN, sólo con las
+      // credenciales (getFile). Lo usan las fichas técnicas.
+      const params = options.private
+        ? {
+            Bucket: this.bucketName,
+            Key: fileName,
+            Body: fileContent,
+            ACL: ObjectCannedACL.private,
+            ContentType: detectedContentType,
+            CacheControl: 'private, no-store',
+          }
+        : {
+            Bucket: this.bucketName,
+            Key: fileName,
+            Body: fileContent,
+            ACL: ObjectCannedACL.public_read,
+            ContentType: detectedContentType,
+            // Headers de cache para reducir bandwidth
+            // Cache-Control: max-age=31536000 = 1 año (las imágenes no cambian frecuentemente)
+            // Expires: fecha de expiración (1 año desde ahora)
+            CacheControl: 'public, max-age=31536000, immutable',
+            Expires: new Date(Date.now() + 31536000 * 1000), // 1 año desde ahora
+          };
       this.logger.debug(`Uploading file: ${fileName} to bucket: ${this.bucketName} with cache headers`);
       const uploaded = await this.s3.send(new PutObjectCommand(params));
       this.logger.debug(`File uploaded successfully: ${fileName}`);
@@ -198,6 +210,7 @@ export class DigitalOceanService {
       png: 'image/png',
       gif: 'image/gif',
       svg: 'image/svg+xml',
+      pdf: 'application/pdf',
     };
     return contentTypes[ext || ''] || 'application/octet-stream';
   }

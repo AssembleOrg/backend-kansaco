@@ -121,4 +121,14 @@ export class ProductResponse {
   })
   @IsArray()
   images?: ProductImageResponse[];
+
+  @ApiProperty({
+    description:
+      'Ficha técnica (PDF) si el producto tiene. El archivo se pide a GET /product/:id/technical-sheet (requiere login).',
+    required: false,
+    nullable: true,
+    example: { name: 'ficha-tecnica.pdf', size: 123456 },
+  })
+  @IsOptional()
+  technicalSheet?: { name: string; size: number | null } | null;
 }

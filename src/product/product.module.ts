@@ -12,6 +12,7 @@ import { ImageModule } from '../image/image.module';
 import { CategoryModule } from '../category/category.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { BultoModule } from '../bulto/bulto.module';
+import { TechnicalSheetService } from './technical-sheet.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { BultoModule } from '../bulto/bulto.module';
     BultoModule,
   ],
   controllers: [ProductoController],
-  providers: [ProductoService, AuthGuard, RolesGuard],
+  providers: [ProductoService, TechnicalSheetService, AuthGuard, RolesGuard],
   exports: [ProductoService],
 })
 export class ProductoModule {}

@@ -54,6 +54,10 @@ import { cleanImageKey } from '../helpers/image.helper';
 import { CategoryResponseDto } from '../category/dto/category-response.dto';
 import { DateTime } from 'luxon';
 import { PricingService } from '../pricing/pricing.service';
+import {
+  TechnicalSheetService,
+  TECHNICAL_SHEET_MAX_BYTES,
+} from './technical-sheet.service';
 
 @Controller('product')
 @ApiTags('Kansaco - Products')
@@ -102,6 +106,14 @@ export class ProductoController {
     delete productCopy.cartItems;
     delete productCopy.discounts;
     
+    // Ficha técnica: sólo si existe y su nombre; el archivo se pide aparte.
+    const technicalSheet = product.technicalSheetName
+      ? { name: product.technicalSheetName, size: product.technicalSheetSize ?? null }
+      : null;
+    delete productCopy.technicalSheetKey;
+    delete productCopy.technicalSheetName;
+    delete productCopy.technicalSheetSize;
+
     // El precio base nunca se expone tal cual: se calcula el precio de la lista
     // del rol. Anónimo / minorista(pendiente) / admin / asistente => null.
     delete productCopy.price;
@@ -111,6 +123,8 @@ export class ProductoController {
     const response = plainToInstance(ProductResponse, productCopy, {
       excludeExtraneousValues: false,
     });
+
+    response.technicalSheet = technicalSheet;
 
     response.price = this.pricingService.applyRolePricing(
       product.price,
@@ -134,6 +148,7 @@ export class ProductoController {
     private readonly productoService: ProductoService,
     private readonly imageService: ImageService,
     private readonly pricingService: PricingService,
+    private readonly technicalSheetService: TechnicalSheetService,
   ) {}
 
   @Get()
@@ -316,6 +331,8 @@ export class ProductoController {
     @Param('id') id: number,
     @Body(ValidationPipe) body: ProductEdit,
   ): Promise<ProductResponse> {
+    // El panel reenvía el producto entero: la ficha se maneja por su endpoint.
+    delete body.technicalSheet;
     const product = await this.productoService.editProduct(id, body);
     return this.toProductResponse(product);
   }
@@ -355,8 +372,79 @@ export class ProductoController {
   @ApiBearerAuth()
   @ApiOkResponse()
   async deleteProduct(@Param('id') id: number): Promise<ProductResponse> {
+    const sheetKey = await this.technicalSheetService.getKey(id);
     const product = await this.productoService.deleteProduct(id);
+    if (sheetKey) await this.technicalSheetService.removeFromBucket(sheetKey);
     return this.toProductResponse(product);
+  }
+
+  @Post('/:id/technical-sheet')
+  @Throttle({ short: { limit: 2, ttl: 2000 }, medium: { limit: 10, ttl: 10_000 } })
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @UseGuards(AuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      // +1 byte: multer corta en el límite y el servicio da el mensaje claro.
+      limits: { fileSize: TECHNICAL_SHEET_MAX_BYTES + 1, files: 1 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'PDF (máx. 20 MB)' },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Sube o reemplaza la ficha técnica (PDF) del producto' })
+  async uploadTechnicalSheet(
+    @Param('id', ParseIntPipe) productId: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.technicalSheetService.upload(productId, file);
+  }
+
+  @Delete('/:id/technical-sheet')
+  @Roles(UserRole.ADMIN, UserRole.ASISTENTE)
+  @UseGuards(AuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Quita la ficha técnica del producto' })
+  async deleteTechnicalSheet(@Param('id', ParseIntPipe) productId: number) {
+    await this.technicalSheetService.remove(productId);
+    return { message: 'Ficha técnica eliminada' };
+  }
+
+  @Get('/:id/technical-sheet')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Descarga la ficha técnica (PDF). Sólo usuarios logueados.',
+  })
+  @ApiQuery({ name: 'download', type: Boolean, required: false })
+  async getTechnicalSheet(
+    @Param('id', ParseIntPipe) productId: number,
+    @Query('download') download: string | undefined,
+    @Req() req: any,
+    @Res() res: Response,
+  ): Promise<void> {
+    const rol: UserRole | undefined = req.user?.rol;
+    const isStaff = rol === UserRole.ADMIN || rol === UserRole.ASISTENTE;
+    const sheet = await this.technicalSheetService.get(productId, isStaff);
+    const asciiName =
+      sheet.name.normalize('NFD').replace(/[^\x20-\x7e]/g, '').replace(/["\\]/g, '') ||
+      'ficha-tecnica.pdf';
+    const disposition = download === 'true' || download === '1' ? 'attachment' : 'inline';
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': String(sheet.buffer.length),
+      'Content-Disposition': `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(sheet.name)}`,
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.end(sheet.buffer);
   }
 
   @Get('/file/listUpdatePrices')

@@ -16,7 +16,7 @@ import { AuthGuard } from '../guards/auth.guard';
   ],
   controllers: [ImageController],
   providers: [ImageService, DigitalOceanService, AuthGuard, RolesGuard],
-  exports: [ImageService],
+  exports: [ImageService, DigitalOceanService],
 })
 export class ImageModule {}
 

@@ -78,6 +78,33 @@ export class Product {
   })
   wholeSaler: string;
 
+  /**
+   * Ficha técnica (PDF). Se guarda en el bucket con ACL privada y sólo se sirve
+   * por GET /product/:id/technical-sheet a usuarios logueados. El key no se
+   * selecciona por defecto para que no viaje en las respuestas (productos,
+   * carrito, etc.).
+   */
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    length: 250,
+    select: false,
+  })
+  technicalSheetKey: string | null;
+
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    length: 200,
+  })
+  technicalSheetName: string | null;
+
+  @Column({
+    type: 'int',
+    nullable: true,
+  })
+  technicalSheetSize: number | null;
+
   @Column({
     type: 'int',
     nullable: false,
